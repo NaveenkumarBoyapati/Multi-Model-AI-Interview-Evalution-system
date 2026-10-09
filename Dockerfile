@@ -36,10 +36,11 @@ RUN mkdir -p /app/backend/uploads && chmod -R 777 /app/backend/uploads
 
 # Default port 7860 for Hugging Face Spaces, dynamically configurable via PORT env var
 ENV PORT=7860
+ENV DB_ENGINE=sqlite
 EXPOSE 7860 8000
 
 # Set working directory to backend where main.py resides
 WORKDIR /app/backend
 
-# Run FastAPI backend with Uvicorn on dynamic port
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"]
+# Initialize SQLite database and run FastAPI backend on dynamic port
+CMD ["sh", "-c", "python sqlite_init.py && uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"]
