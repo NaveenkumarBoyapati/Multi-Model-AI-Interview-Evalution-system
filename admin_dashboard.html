@@ -1,0 +1,1340 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin Console | Multi-Model AI Interview Evaluation System</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="css/admin_dashboard.css?v=3">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <!-- Chart.js for enterprise dashboards -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+
+    <!-- Security Authorization Overlay: Prevents unprivileged screen flash -->
+    <div id="adminAuthOverlay" style="position: fixed; inset: 0; background: #0f172a; z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #ffffff; font-family: 'Poppins', sans-serif;">
+        <div style="text-align: center;">
+            <i class="fas fa-shield-halved fa-spin" style="font-size: 40px; color: #3b82f6; margin-bottom: 16px;"></i>
+            <h3 style="font-size: 18px; font-weight: 600; margin: 0 0 8px 0;">Verifying Administrator Authorization...</h3>
+            <p style="font-size: 13px; color: #94a3b8; margin: 0;">Multi-Model AI Evaluation Security Guard</p>
+        </div>
+    </div>
+
+    <!-- =========================================================
+         SUPER ADMIN SIDEBAR
+         ========================================================= -->
+    <aside class="admin-sidebar" id="adminSidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-brand-icon">
+                <i class="fas fa-shield-halved"></i>
+            </div>
+            <div class="sidebar-brand-text">
+                <h1>AI Interview System</h1>
+                <p>Super Admin Console | Administration Portal</p>
+            </div>
+        </div>
+
+        <nav class="sidebar-nav-container">
+            <div class="sidebar-category">Overview & Intelligence</div>
+            <a class="sidebar-link active" data-tab="command-center" onclick="switchAdminTab('command-center')">
+                <i class="fas fa-gauge-high"></i>
+                <span>Command Center</span>
+            </a>
+            <a class="sidebar-link" data-tab="analytics" onclick="switchAdminTab('analytics')">
+                <i class="fas fa-chart-pie"></i>
+                <span>Analytics Center</span>
+            </a>
+
+            <div class="sidebar-category">Operations & Data</div>
+            <a class="sidebar-link" data-tab="users" onclick="switchAdminTab('users')">
+                <i class="fas fa-users-gear"></i>
+                <span>User Management</span>
+            </a>
+            <a class="sidebar-link" data-tab="interviews" onclick="switchAdminTab('interviews')">
+                <i class="fas fa-clipboard-list"></i>
+                <span>Interviews</span>
+            </a>
+            <a class="sidebar-link" data-tab="evaluations" onclick="switchAdminTab('evaluations')">
+                <i class="fas fa-brain"></i>
+                <span>AI Evaluation Center</span>
+            </a>
+            <a class="sidebar-link" data-tab="questions" onclick="switchAdminTab('questions')">
+                <i class="fas fa-database"></i>
+                <span>Question Bank</span>
+            </a>
+            <a class="sidebar-link" data-tab="roles" onclick="switchAdminTab('roles')">
+                <i class="fas fa-briefcase"></i>
+                <span>Interview Roles</span>
+            </a>
+
+            <div class="sidebar-category">Media & Deliverables</div>
+            <a class="sidebar-link" data-tab="recordings" onclick="switchAdminTab('recordings')">
+                <i class="fas fa-video"></i>
+                <span>Recordings & Media</span>
+            </a>
+            <a class="sidebar-link" data-tab="reports" onclick="switchAdminTab('reports')">
+                <i class="fas fa-file-pdf"></i>
+                <span>Report Center</span>
+            </a>
+
+            <div class="sidebar-category">Governance & Health</div>
+            <a class="sidebar-link" data-tab="security" onclick="switchAdminTab('security')">
+                <i class="fas fa-shield-halved"></i>
+                <span>Security Center</span>
+                <span class="badge" id="sidebarViolationsBadge">0</span>
+            </a>
+            <a class="sidebar-link" data-tab="audit-logs" onclick="switchAdminTab('audit-logs')">
+                <i class="fas fa-list-check"></i>
+                <span>Audit Logs</span>
+            </a>
+            <a class="sidebar-link" data-tab="system-health" onclick="switchAdminTab('system-health')">
+                <i class="fas fa-heart-pulse"></i>
+                <span>System Health</span>
+            </a>
+            <a class="sidebar-link" data-tab="settings" onclick="switchAdminTab('settings')">
+                <i class="fas fa-sliders"></i>
+                <span>System Settings</span>
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <div class="sidebar-status-pill">
+                <div class="status-indicator-dot"></div>
+                <span>Core Systems Active</span>
+            </div>
+            <button type="button" class="btn-action" title="Open Admin Profile" onclick="openAdminProfileModal()">
+                <i class="fas fa-gear" style="color: #94a3b8;"></i>
+            </button>
+        </div>
+    </aside>
+
+    <!-- =========================================================
+         MAIN APPLICATION WRAPPER
+         ========================================================= -->
+    <div class="admin-main-wrapper">
+
+        <!-- Top Navigation Bar -->
+        <header class="admin-topbar">
+            <div class="topbar-left">
+                <button type="button" class="menu-toggle-btn" onclick="toggleSidebar()">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="topbar-breadcrumbs">
+                    <span>Console</span>
+                    <i class="fas fa-chevron-right" style="font-size: 10px; color: #94a3b8;"></i>
+                    <span class="active-crumb" id="breadcrumbActiveTitle">Command Center</span>
+                </div>
+            </div>
+
+            <div class="topbar-right">
+                <!-- Candidate dashboard link hidden for administrator accounts -->
+                <a href="dashboard.html" class="btn-nav-outline" title="Switch to Candidate Dashboard" style="display: none;">
+                    <i class="fas fa-desktop"></i> Candidate View
+                </a>
+
+                <div class="admin-user-pill" onclick="openAdminProfileModal()" title="View and edit administrator profile">
+                    <i class="fas fa-user-shield" style="color: #2563eb;"></i>
+                    <span id="navAdminName">Administrator</span>
+                    <span class="badge">ADMIN</span>
+                </div>
+
+                <button type="button" class="btn-logout" onclick="handleAdminLogout()">
+                    <i class="fas fa-right-from-bracket"></i> Logout
+                </button>
+            </div>
+        </header>
+
+        <!-- =========================================================
+             TAB 1: COMMAND CENTER (SUPER ADMIN DASHBOARD)
+             ========================================================= -->
+        <section id="pane-command-center" class="admin-tab-pane active">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-gauge-high" style="color: #2563eb;"></i> Executive Command Center</h2>
+                    <p>Live metrics, system statistics, and multi-model interview evaluations</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-secondary" onclick="loadDashboardMetrics()">
+                        <i class="fas fa-rotate-right"></i> Refresh Stats
+                    </button>
+                </div>
+            </div>
+
+            <!-- 12 Real Database Metrics Cards Grid -->
+            <div class="metrics-grid-4">
+                <div class="metric-card">
+                    <div class="metric-icon blue"><i class="fas fa-users"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statTotalCandidates">--</h3>
+                        <p>Total Candidates</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon green"><i class="fas fa-user-check"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statActiveCandidates">--</h3>
+                        <p>Active Candidates</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon slate"><i class="fas fa-user-slash"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statInactiveCandidates">--</h3>
+                        <p>Inactive Candidates</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon purple"><i class="fas fa-user-shield"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statTotalAdmins">--</h3>
+                        <p>System Administrators</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metrics-grid-4">
+                <div class="metric-card">
+                    <div class="metric-icon blue"><i class="fas fa-layer-group"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statTotalInterviews">--</h3>
+                        <p>Total Interviews</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon green"><i class="fas fa-circle-check"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statCompletedInterviews">--</h3>
+                        <p>Completed Interviews</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon red"><i class="fas fa-ban"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statTerminatedInterviews">--</h3>
+                        <p>Terminated Interviews</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon orange"><i class="fas fa-shield-triangle-exclamation"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statSecurityViolations">--</h3>
+                        <p>Security Violations</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="metrics-grid-4">
+                <div class="metric-card">
+                    <div class="metric-icon purple"><i class="fas fa-chart-line"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statAverageScore">--%</h3>
+                        <p>Average Score</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon amber"><i class="fas fa-trophy"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statHighestScore">--%</h3>
+                        <p>Highest Score</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon green"><i class="fas fa-calendar-day"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statInterviewsToday">--</h3>
+                        <p>Interviews Today</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon blue"><i class="fas fa-calendar-week"></i></div>
+                    <div class="metric-data">
+                        <h3 id="statInterviewsThisWeek">--</h3>
+                        <p>Interviews This Week</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real-Time Interactive Charts Grid -->
+            <div class="charts-grid-2">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3><i class="fas fa-chart-area" style="color: #2563eb;"></i> Interview Activity Trend</h3>
+                        <span style="font-size: 11px; color: #64748b;">Daily volume (last 14 days)</span>
+                    </div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="chartInterviewActivity"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3><i class="fas fa-chart-pie" style="color: #16a34a;"></i> Completed vs. Terminated</h3>
+                        <span style="font-size: 11px; color: #64748b;">Execution completion ratio</span>
+                    </div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="chartCompletionRatio"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-grid-2">
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3><i class="fas fa-chart-simple" style="color: #7c3aed;"></i> Performance Score Distribution</h3>
+                        <span style="font-size: 11px; color: #64748b;">Completed evaluation cohorts</span>
+                    </div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="chartScoreDistribution"></canvas>
+                    </div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-card-header">
+                        <h3><i class="fas fa-bars-staggered" style="color: #0284c7;"></i> Average Score by Role</h3>
+                        <span style="font-size: 11px; color: #64748b;">Role mastery benchmark</span>
+                    </div>
+                    <div class="chart-canvas-wrapper">
+                        <canvas id="chartRoleScores"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Sessions Quick View -->
+            <div class="admin-card-section">
+                <div class="table-controls">
+                    <h3 style="font-size: 15px; font-weight: 600;">
+                        <i class="fas fa-clock-rotate-left" style="color: #2563eb;"></i> Recent Evaluation Sessions
+                    </h3>
+                    <button class="btn-nav-outline" onclick="switchAdminTab('interviews')">
+                        View All Interviews <i class="fas fa-arrow-right"></i>
+                    </button>
+                </div>
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Candidate</th>
+                                <th>Email</th>
+                                <th>Role</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th>Conducted At</th>
+                                <th style="text-align: right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentSessionsTableBody">
+                            <tr><td colspan="8" style="text-align: center; padding: 24px; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Loading recent activity...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 2: USER MANAGEMENT
+             ========================================================= -->
+        <section id="pane-users" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-users-gear" style="color: #2563eb;"></i> User & Candidate Management</h2>
+                    <p>Manage candidate accounts, edit privileges, toggle activation, and reset credentials</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-primary" onclick="openCreateUserModal()">
+                        <i class="fas fa-user-plus"></i> Add New User
+                    </button>
+                    <button class="btn-secondary" onclick="loadUsersTable()">
+                        <i class="fas fa-rotate-right"></i> Refresh List
+                    </button>
+                </div>
+            </div>
+
+            <div class="admin-card-section">
+                <div class="table-controls">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="usersSearchInput" placeholder="Search name, email, ID..." oninput="debounceFilterUsers()">
+                    </div>
+
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <select id="userRoleFilter" class="filter-select" onchange="loadUsersTable()">
+                            <option value="">All Roles</option>
+                            <option value="Python Developer">Python Developer</option>
+                            <option value="Java Developer">Java Developer</option>
+                            <option value="Web Developer">Web Developer</option>
+                            <option value="Data Analyst">Data Analyst</option>
+                        </select>
+
+                        <select id="userAccountTypeFilter" class="filter-select" onchange="loadUsersTable()">
+                            <option value="">All Account Types</option>
+                            <option value="Candidate">Candidates Only</option>
+                            <option value="Admin">Administrators Only</option>
+                        </select>
+
+                        <select id="userStatusFilter" class="filter-select" onchange="loadUsersTable()">
+                            <option value="">All Statuses</option>
+                            <option value="Active">Active</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Candidate Name</th>
+                                <th>Email</th>
+                                <th>Interview Role</th>
+                                <th>Account Type</th>
+                                <th>Status</th>
+                                <th>Interviews</th>
+                                <th>Avg Score</th>
+                                <th>Member Since</th>
+                                <th>Last Activity</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody">
+                            <tr><td colspan="11" style="text-align: center; padding: 30px; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Loading users database...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 3: INTERVIEWS MANAGEMENT
+             ========================================================= -->
+        <section id="pane-interviews" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-clipboard-list" style="color: #2563eb;"></i> Interview Evaluation Records</h2>
+                    <p>Review comprehensive interview results, recordings, scores, and security reports</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-secondary" onclick="loadInterviewsTable()">
+                        <i class="fas fa-rotate-right"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div class="admin-card-section">
+                <div class="table-controls">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="interviewsSearchInput" placeholder="Search candidate, email, ID..." oninput="debounceFilterInterviews()">
+                    </div>
+
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <select id="interviewRoleFilter" class="filter-select" onchange="loadInterviewsTable()">
+                            <option value="">All Roles</option>
+                            <option value="Python Developer">Python Developer</option>
+                            <option value="Java Developer">Java Developer</option>
+                            <option value="Web Developer">Web Developer</option>
+                            <option value="Data Analyst">Data Analyst</option>
+                        </select>
+
+                        <select id="interviewStatusFilter" class="filter-select" onchange="loadInterviewsTable()">
+                            <option value="">All Statuses</option>
+                            <option value="Completed">Completed Only</option>
+                            <option value="Terminated">Terminated Only</option>
+                        </select>
+
+                        <select id="interviewViolationFilter" class="filter-select" onchange="loadInterviewsTable()">
+                            <option value="">Security Violations</option>
+                            <option value="Yes">Violations Only</option>
+                            <option value="No">No Violations</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Candidate</th>
+                                <th>Email</th>
+                                <th>Interview Role</th>
+                                <th>Conducted Date</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th>Tab Switches</th>
+                                <th>Violation</th>
+                                <th>Recording</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="interviewsTableBody">
+                            <tr><td colspan="11" style="text-align: center; padding: 30px; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Loading interview records...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 4: AI EVALUATION CENTER
+             ========================================================= -->
+        <section id="pane-evaluations" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-brain" style="color: #2563eb;"></i> AI Evaluation Inspection Center</h2>
+                    <p>Deep-dive into multi-model AI question scoring, concept matching, and transcription analysis</p>
+                </div>
+            </div>
+
+            <div class="admin-card-section" style="margin-bottom: 20px;">
+                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">Select Interview Session to Inspect</h3>
+                <div style="display: flex; gap: 10px; max-width: 500px;">
+                    <input type="number" id="inspectInterviewIdInput" placeholder="Enter Interview ID (e.g. 116)..." style="flex:1; padding: 9px 12px; border: 1px solid #e2e8f0; border-radius: 8px;">
+                    <button class="btn-primary" onclick="inspectInterviewAI()"><i class="fas fa-magnifying-glass"></i> Inspect Evaluation</button>
+                </div>
+            </div>
+
+            <div id="aiInspectionDetailsContainer" style="display: none;">
+                <!-- Filled dynamically -->
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 5: QUESTION BANK MANAGEMENT
+             ========================================================= -->
+        <section id="pane-questions" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-database" style="color: #2563eb;"></i> Question Bank Management</h2>
+                    <p>Configure interview questions, expected technical concepts, difficulty levels, and guidance</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-primary" onclick="openCreateQuestionModal()">
+                        <i class="fas fa-plus"></i> Add Question
+                    </button>
+                    <button class="btn-secondary" onclick="loadQuestionsTable()">
+                        <i class="fas fa-rotate-right"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div class="admin-card-section">
+                <div class="table-controls">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="questionsSearchInput" placeholder="Search question text or concepts..." oninput="debounceFilterQuestions()">
+                    </div>
+
+                    <div style="display: flex; gap: 8px;">
+                        <select id="questionRoleFilter" class="filter-select" onchange="loadQuestionsTable()">
+                            <option value="">All Roles</option>
+                            <option value="Python Developer">Python Developer</option>
+                            <option value="Java Developer">Java Developer</option>
+                            <option value="Web Developer">Web Developer</option>
+                            <option value="Data Analyst">Data Analyst</option>
+                        </select>
+
+                        <select id="questionDifficultyFilter" class="filter-select" onchange="loadQuestionsTable()">
+                            <option value="">All Difficulties</option>
+                            <option value="Easy">Easy</option>
+                            <option value="Medium">Medium</option>
+                            <option value="Hard">Hard</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Target Role</th>
+                                <th>Difficulty</th>
+                                <th>Category</th>
+                                <th>Question Prompt</th>
+                                <th>Expected Concepts</th>
+                                <th>Status</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="questionsTableBody">
+                            <tr><td colspan="8" style="text-align: center; padding: 30px; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Loading question bank...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 6: INTERVIEW ROLES MANAGEMENT
+             ========================================================= -->
+        <section id="pane-roles" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-briefcase" style="color: #2563eb;"></i> Interview Role Management</h2>
+                    <p>Manage interview roles, skill categories, technical domains, and active questions</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-primary" onclick="openCreateRoleModal()">
+                        <i class="fas fa-plus"></i> Add New Role
+                    </button>
+                    <button class="btn-secondary" onclick="loadRolesTable()">
+                        <i class="fas fa-rotate-right"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div class="admin-card-section">
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Role Name</th>
+                                <th>Slug</th>
+                                <th>Description</th>
+                                <th>Technical Topics</th>
+                                <th>Active Questions</th>
+                                <th>Interviews Conducted</th>
+                                <th>Status</th>
+                                <th style="text-align: right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="rolesTableBody">
+                            <tr><td colspan="9" style="text-align: center; padding: 30px; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Loading roles database...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 7: RECORDINGS & MEDIA EVIDENCE
+             ========================================================= -->
+        <section id="pane-recordings" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-video" style="color: #2563eb;"></i> Recordings & Media Archive</h2>
+                    <p>Access continuous session audio/video recordings and Faster-Whisper transcripts</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-secondary" onclick="loadRecordingsTable()">
+                        <i class="fas fa-rotate-right"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div class="admin-card-section">
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Interview ID</th>
+                                <th>Candidate</th>
+                                <th>Role</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th>Recording Status</th>
+                                <th>Transcript</th>
+                                <th style="text-align: right;">Media Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordingsTableBody">
+                            <tr><td colspan="8" style="text-align: center; padding: 30px; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Loading media files...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 8: REPORT CENTER
+             ========================================================= -->
+        <section id="pane-reports" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-file-pdf" style="color: #dc2626;"></i> PDF Report Center</h2>
+                    <p>Generate, inspect, and securely download server-side PDF evaluation reports</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-secondary" onclick="loadReportsTable()">
+                        <i class="fas fa-rotate-right"></i> Refresh
+                    </button>
+                </div>
+            </div>
+
+            <div class="admin-card-section">
+                <div class="table-controls">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="reportsSearchInput" placeholder="Search candidate name or ID..." oninput="debounceFilterReports()">
+                    </div>
+                </div>
+
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Interview ID</th>
+                                <th>Candidate</th>
+                                <th>Role</th>
+                                <th>Date</th>
+                                <th>Score</th>
+                                <th>Status</th>
+                                <th>Security Flag</th>
+                                <th style="text-align: right;">Download Report</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reportsTableBody">
+                            <tr><td colspan="8" style="text-align: center; padding: 30px; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Loading report catalog...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 9: SECURITY CENTER
+             ========================================================= -->
+        <section id="pane-security" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-shield-halved" style="color: #dc2626;"></i> Security & Compliance Center</h2>
+                    <p>Live security monitoring, tab-switch violation tracking, and strict anti-cheating policy audits</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-secondary" onclick="loadSecurityData()">
+                        <i class="fas fa-rotate-right"></i> Refresh Security Feed
+                    </button>
+                </div>
+            </div>
+
+            <!-- Policy Guarantee Banner -->
+            <div class="security-banner">
+                <div class="security-banner-icon"><i class="fas fa-triangle-exclamation"></i></div>
+                <div class="security-banner-text">
+                    <h3>Strict System Security Enforcement Active</h3>
+                    <p>Policy: Exactly <strong>1 tab switch triggers immediate interview termination</strong>. To eliminate false positives, window.blur events are strictly ignored. Terminated sessions receive zero AI scores, and audit evidence is immutably recorded.</p>
+                </div>
+            </div>
+
+            <div class="metrics-grid-4">
+                <div class="metric-card">
+                    <div class="metric-icon red"><i class="fas fa-ban"></i></div>
+                    <div class="metric-data">
+                        <h3 id="secTotalViolations">--</h3>
+                        <p>Total Security Violations</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon orange"><i class="fas fa-circle-xmark"></i></div>
+                    <div class="metric-data">
+                        <h3 id="secTerminatedInterviews">--</h3>
+                        <p>Terminated Interviews</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon blue"><i class="fas fa-stopwatch"></i></div>
+                    <div class="metric-data">
+                        <h3>1 Strike</h3>
+                        <p>Termination Threshold</p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon green"><i class="fas fa-shield-check"></i></div>
+                    <div class="metric-data">
+                        <h3>Active</h3>
+                        <p>Anti-Cheating Guard</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-card-section">
+                <h3 style="font-size: 15px; font-weight: 600; margin-bottom: 14px;">
+                    <i class="fas fa-satellite-dish" style="color: #dc2626;"></i> Recent Security Events Feed
+                </h3>
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Interview ID</th>
+                                <th>Candidate</th>
+                                <th>Role</th>
+                                <th>Event Type</th>
+                                <th>Reason</th>
+                                <th>Violation Count</th>
+                                <th>Enforcement Action</th>
+                                <th>Timestamp</th>
+                                <th style="text-align: right;">Inspect</th>
+                            </tr>
+                        </thead>
+                        <tbody id="securityEventsTableBody">
+                            <tr><td colspan="9" style="text-align: center; padding: 30px; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Loading security events...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 10: ADVANCED ANALYTICS CENTER
+             ========================================================= -->
+        <section id="pane-analytics" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-chart-pie" style="color: #7c3aed;"></i> System Intelligence & Learning Analytics</h2>
+                    <p>Curated analytical insights on difficult questions, concept gap analysis, and role benchmark metrics</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-secondary" onclick="loadAnalyticsData()">
+                        <i class="fas fa-rotate-right"></i> Refresh Analytics
+                    </button>
+                </div>
+            </div>
+
+            <div class="charts-grid-2">
+                <!-- Most Difficult Questions -->
+                <div class="admin-card-section">
+                    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
+                        <i class="fas fa-triangle-exclamation" style="color: #ea580c;"></i> Top 10 Most Difficult Questions
+                    </h3>
+                    <div class="table-responsive admin-table-wrapper">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Question</th>
+                                    <th>Difficulty</th>
+                                    <th>Avg Score</th>
+                                    <th>Attempts</th>
+                                </tr>
+                            </thead>
+                            <tbody id="difficultQuestionsTableBody">
+                                <tr><td colspan="4" style="text-align: center; padding: 20px; color: #64748b;">Loading analytics...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Most Missed Concepts -->
+                <div class="admin-card-section">
+                    <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
+                        <i class="fas fa-lightbulb" style="color: #7c3aed;"></i> Top 10 Most Missed Technical Concepts
+                    </h3>
+                    <div class="table-responsive admin-table-wrapper">
+                        <table class="admin-table">
+                            <thead>
+                                <tr>
+                                    <th>Concept</th>
+                                    <th>Miss Frequency</th>
+                                </tr>
+                            </thead>
+                            <tbody id="missedConceptsTableBody">
+                                <tr><td colspan="2" style="text-align: center; padding: 20px; color: #64748b;">Loading concept analytics...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Role Benchmarks Table -->
+            <div class="admin-card-section">
+                <h3 style="font-size: 14px; font-weight: 600; margin-bottom: 12px;">
+                    <i class="fas fa-trophy" style="color: #2563eb;"></i> Role-Wise Performance & Completion Rates
+                </h3>
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Role</th>
+                                <th>Total Interviews</th>
+                                <th>Completed</th>
+                                <th>Terminated</th>
+                                <th>Completion Rate</th>
+                                <th>Average Score</th>
+                            </tr>
+                        </thead>
+                        <tbody id="roleAnalyticsTableBody">
+                            <tr><td colspan="6" style="text-align: center; padding: 20px; color: #64748b;">Loading role performance...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 11: AUDIT LOG SYSTEM
+             ========================================================= -->
+        <section id="pane-audit-logs" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-list-check" style="color: #0284c7;"></i> Admin Audit Logs</h2>
+                    <p>Immutable record of administrative actions, user changes, role modifications, and system events</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-secondary" onclick="loadAuditLogsTable()">
+                        <i class="fas fa-rotate-right"></i> Refresh Logs
+                    </button>
+                </div>
+            </div>
+
+            <div class="admin-card-section">
+                <div class="table-controls">
+                    <div class="search-input-wrapper">
+                        <i class="fas fa-magnifying-glass"></i>
+                        <input type="text" id="auditSearchInput" placeholder="Search action, target ID, admin..." oninput="debounceFilterAudit()">
+                    </div>
+                </div>
+
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Admin User</th>
+                                <th>Admin Email</th>
+                                <th>Action Performed</th>
+                                <th>Target Type</th>
+                                <th>Target ID</th>
+                                <th>Result</th>
+                                <th>Timestamp</th>
+                                <th style="text-align: right;">Details</th>
+                            </tr>
+                        </thead>
+                        <tbody id="auditLogsTableBody">
+                            <tr><td colspan="9" style="text-align: center; padding: 30px; color: #64748b;"><i class="fas fa-spinner fa-spin"></i> Loading audit trails...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 12: SYSTEM HEALTH
+             ========================================================= -->
+        <section id="pane-system-health" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-heart-pulse" style="color: #16a34a;"></i> Subsystem Diagnostic Health</h2>
+                    <p>Live health indicators and connectivity status across all core services</p>
+                </div>
+                <div class="pane-actions">
+                    <button class="btn-primary" onclick="loadSystemHealth()">
+                        <i class="fas fa-play"></i> Run Health Diagnostics
+                    </button>
+                </div>
+            </div>
+
+            <div class="health-grid" id="systemHealthCardsContainer">
+                <!-- Dynamically populated -->
+            </div>
+        </section>
+
+        <!-- =========================================================
+             TAB 13: SYSTEM SETTINGS
+             ========================================================= -->
+        <section id="pane-settings" class="admin-tab-pane">
+            <div class="pane-header">
+                <div class="pane-title">
+                    <h2><i class="fas fa-sliders" style="color: #2563eb;"></i> System Architecture & Policy Settings</h2>
+                    <p>Review system configuration, security rules, and integration states (Credentials masked)</p>
+                </div>
+            </div>
+
+            <div class="settings-section-card">
+                <h3><i class="fas fa-building" style="color: #2563eb;"></i> General System Information</h3>
+                <p class="subtitle">System deployment and identification metadata</p>
+                <div class="settings-grid-2">
+                    <div class="setting-item">
+                        <label>Application Name</label>
+                        <div class="value" id="setAppName">Multi-Model AI Interview Evaluation System</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Release Version</label>
+                        <div class="value" id="setAppVersion">2.4.0 (Enterprise Super Admin)</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Deployment Environment</label>
+                        <div class="value" id="setAppEnv">Production</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Organization</label>
+                        <div class="value" id="setAppOrg">Academic Research & Evaluation System</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section-card">
+                <h3><i class="fas fa-lock" style="color: #16a34a;"></i> Security & Password Policy</h3>
+                <p class="subtitle">Enforced credential complexity rules</p>
+                <div class="settings-grid-2">
+                    <div class="setting-item">
+                        <label>Password Rules</label>
+                        <div class="value">Min 8 chars, Uppercase 1st char, Special char required</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Cryptographic Hashing</label>
+                        <div class="value">PBKDF2-HMAC-SHA256 (260,000 iterations)</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Session Expiration</label>
+                        <div class="value">24 Hours (Rolling cryptographic tokens)</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Tab Switch Security</label>
+                        <div class="value">Strict 1-Strike Immediate Termination (blur ignored)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section-card">
+                <h3><i class="fas fa-envelope" style="color: #7c3aed;"></i> Email & SMTP Integration</h3>
+                <p class="subtitle">Gmail SMTP transmission gateway (Credentials strictly masked)</p>
+                <div class="settings-grid-2">
+                    <div class="setting-item">
+                        <label>SMTP Host</label>
+                        <div class="value" id="setSmtpHost">smtp.gmail.com</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>SMTP Port</label>
+                        <div class="value" id="setSmtpPort">587 (TLS)</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Sender Address</label>
+                        <div class="value" id="setSmtpSender">Configured (Masked)</div>
+                    </div>
+                    <div class="setting-item">
+                        <label>Password Status</label>
+                        <div class="value">•••••••••••••••• (Encrypted in env)</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- =========================================================
+         MODALS COLLECTION
+         ========================================================= -->
+
+    <!-- Modal 1: User Interview History Modal -->
+    <div id="userInterviewsModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 860px;">
+            <div class="modal-header">
+                <div>
+                    <h3 id="modalUserTitle">Candidate Interview History</h3>
+                    <p id="modalUserSubtitle" style="font-size: 12px; color: #64748b; margin-top: 2px;">Loading interviews...</p>
+                </div>
+                <button class="modal-close-btn" onclick="closeUserInterviewsModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive admin-table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Role</th>
+                                <th>Overall</th>
+                                <th>Tech</th>
+                                <th>Comm</th>
+                                <th>Conf</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th style="text-align: right;">Report</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalInterviewsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeUserInterviewsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Create User Modal -->
+    <div id="createUserModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-plus" style="color: #2563eb;"></i> Add User Account</h3>
+                <button class="modal-close-btn" onclick="closeCreateUserModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <form id="createUserForm" onsubmit="return handleCreateUserSubmit(event);">
+                <div class="modal-body">
+                    <div class="modal-form-group">
+                        <label for="createUserName">Full Name</label>
+                        <input type="text" id="createUserName" required placeholder="e.g. Jane Doe">
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="createUserEmail">Email Address</label>
+                        <input type="email" id="createUserEmail" required placeholder="name@example.com">
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="createUserPassword">Initial Password</label>
+                        <input type="password" id="createUserPassword" required placeholder="Must start with uppercase, min 8, special char">
+                        <p style="font-size: 11px; color: #64748b; margin-top: 4px;">Min 8 chars, uppercase first letter, 1 special symbol (e.g. Admin@2026!)</p>
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="createUserRole">Target Interview Role</label>
+                        <select id="createUserRole">
+                            <option value="Python Developer">Python Developer</option>
+                            <option value="Java Developer">Java Developer</option>
+                            <option value="Web Developer">Web Developer</option>
+                            <option value="Data Analyst">Data Analyst</option>
+                        </select>
+                    </div>
+                    <div class="modal-form-group" style="margin-top: 14px;">
+                        <label class="modal-checkbox-label">
+                            <input type="checkbox" id="createUserIsAdmin">
+                            <span>Grant Administrator Privileges</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeCreateUserModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="btnSubmitCreateUser"><i class="fas fa-plus"></i> Create User</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 3: Edit User Modal -->
+    <div id="editUserModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-pen" style="color: #2563eb;"></i> Edit User Account</h3>
+                <button class="modal-close-btn" onclick="closeEditUserModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <form id="editUserForm" onsubmit="return handleSaveUserEdit(event);">
+                <div class="modal-body">
+                    <input type="hidden" id="editUserId">
+                    <div class="modal-form-group">
+                        <label for="editUserName">Candidate Full Name</label>
+                        <input type="text" id="editUserName" required>
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="editUserEmail">Email Address (Read-only)</label>
+                        <input type="email" id="editUserEmail" disabled style="background: #f1f5f9; color: #64748b;">
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="editUserRole">Target Role</label>
+                        <select id="editUserRole">
+                            <option value="Python Developer">Python Developer</option>
+                            <option value="Java Developer">Java Developer</option>
+                            <option value="Web Developer">Web Developer</option>
+                            <option value="Data Analyst">Data Analyst</option>
+                        </select>
+                    </div>
+                    <div class="modal-form-group" style="margin-top: 14px;">
+                        <label class="modal-checkbox-label">
+                            <input type="checkbox" id="editUserIsAdmin">
+                            <span>Grant Administrator Privileges</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeEditUserModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="saveUserBtn"><i class="fas fa-floppy-disk"></i> Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 4: Reset User Password Modal -->
+    <div id="resetPasswordModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-key" style="color: #7c3aed;"></i> Reset User Password</h3>
+                <button class="modal-close-btn" onclick="closeResetPasswordModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <form id="resetPasswordForm" onsubmit="return handleResetPasswordSubmit(event);">
+                <div class="modal-body">
+                    <input type="hidden" id="resetUserId">
+                    <p id="resetUserMessage" style="font-size: 12.5px; color: #334155; margin-bottom: 12px;"></p>
+                    <div class="modal-form-group">
+                        <label for="resetNewPassword">New Password</label>
+                        <input type="password" id="resetNewPassword" required placeholder="Must satisfy password rules">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeResetPasswordModal()">Cancel</button>
+                    <button type="submit" class="btn-primary"><i class="fas fa-check"></i> Set Password</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 5: Delete Confirmation Modal -->
+    <div id="deleteUserModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 440px;">
+            <div class="modal-header">
+                <h3 style="color: #dc2626;"><i class="fas fa-triangle-exclamation"></i> Delete User Account</h3>
+                <button class="modal-close-btn" onclick="closeDeleteUserModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="deleteUserId">
+                <p id="deleteUserMessage" style="font-size: 13px; color: #334155; line-height: 1.5;"></p>
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 10px 14px; margin-top: 14px; font-size: 12px; color: #166534;">
+                    <i class="fas fa-shield-heart"></i>
+                    <strong>Data Protection Guarantee:</strong> All past interview attempts, transcripts, recordings, and scores will remain safely preserved in the database.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeDeleteUserModal()">Cancel</button>
+                <button type="button" class="btn-danger" id="confirmDeleteBtn" onclick="handleConfirmDeleteUser()"><i class="fas fa-trash"></i> Confirm Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 6: Question Create/Edit Modal -->
+    <div id="questionModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 580px;">
+            <div class="modal-header">
+                <h3 id="questionModalTitle"><i class="fas fa-plus"></i> Add Question</h3>
+                <button class="modal-close-btn" onclick="closeQuestionModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <form id="questionForm" onsubmit="return handleQuestionSubmit(event);">
+                <div class="modal-body">
+                    <input type="hidden" id="questionId">
+                    <div style="display: flex; gap: 10px; margin-bottom: 12px;">
+                        <div style="flex: 1;" class="modal-form-group">
+                            <label for="qRoleSelect">Role</label>
+                            <select id="qRoleSelect">
+                                <option value="Python Developer">Python Developer</option>
+                                <option value="Java Developer">Java Developer</option>
+                                <option value="Web Developer">Web Developer</option>
+                                <option value="Data Analyst">Data Analyst</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;" class="modal-form-group">
+                            <label for="qDifficultySelect">Difficulty</label>
+                            <select id="qDifficultySelect">
+                                <option value="Easy">Easy</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Hard">Hard</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="qPromptText">Question Prompt</label>
+                        <textarea id="qPromptText" rows="3" required placeholder="Type interview question..."></textarea>
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="qExpectedTopics">Expected Concepts (Comma-separated)</label>
+                        <input type="text" id="qExpectedTopics" placeholder="e.g. list, dictionary, immutable, performance">
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="qReferenceAnswer">Reference Answer (Optional)</label>
+                        <textarea id="qReferenceAnswer" rows="2" placeholder="Ideal candidate answer..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeQuestionModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="btnSaveQuestion"><i class="fas fa-floppy-disk"></i> Save Question</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal 7: Interview Details Modal -->
+    <div id="interviewDetailModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <div>
+                    <h3 id="intDetailTitle">Interview Evaluation Details</h3>
+                    <p id="intDetailSubtitle" style="font-size: 12px; color: #64748b; margin-top: 2px;"></p>
+                </div>
+                <button class="modal-close-btn" onclick="closeInterviewDetailModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" id="intDetailBody">
+                <!-- Dynamically populated -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeInterviewDetailModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 8: Video Recording Modal -->
+    <div id="videoModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 760px; background: #0f172a; color: white;">
+            <div class="modal-header" style="border-bottom: 1px solid #334155;">
+                <h3 style="color: white;"><i class="fas fa-circle-play" style="color: #3b82f6;"></i> Session Recording</h3>
+                <button class="modal-close-btn" onclick="closeVideoModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body" style="padding: 10px; background: #020617; display: flex; justify-content: center;">
+                <video id="adminVideoPlayer" controls style="width: 100%; max-height: 440px; border-radius: 8px;">
+                    Your browser does not support WebM video playback.
+                </video>
+            </div>
+            <div class="modal-footer" style="background: #0f172a; border-top: 1px solid #334155;">
+                <a id="adminDownloadVideoLink" class="btn-nav-outline" href="#" download style="color: #38bdf8; border-color: #334155;">
+                    <i class="fas fa-download"></i> Download WebM
+                </a>
+                <button class="btn-secondary" onclick="closeVideoModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 9: Admin Profile & Password Modal -->
+    <div id="adminProfileModal" class="modal-overlay">
+        <div class="modal-content" style="max-width: 480px;">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-shield" style="color: #2563eb;"></i> Administrator Profile</h3>
+                <button class="modal-close-btn" onclick="closeAdminProfileModal()"><i class="fas fa-xmark"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="adminProfileForm" onsubmit="return handleAdminProfileSubmit(event);">
+                    <div class="modal-form-group">
+                        <label for="adminProfileName">Admin Full Name</label>
+                        <input type="text" id="adminProfileName" required>
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="adminProfileEmail">Admin Email</label>
+                        <input type="email" id="adminProfileEmail" required>
+                    </div>
+                    <button type="submit" class="btn-primary" style="margin-top: 4px; margin-bottom: 18px;">
+                        <i class="fas fa-floppy-disk"></i> Update Profile Info
+                    </button>
+                </form>
+
+                <hr style="border: 0; border-top: 1px solid #e2e8f0; margin-bottom: 18px;">
+
+                <form id="adminPasswordForm" onsubmit="return handleAdminPasswordSubmit(event);">
+                    <h4 style="font-size: 13.5px; font-weight: 600; margin-bottom: 12px; color: #1e293b;">Change Administrator Password</h4>
+                    <div class="modal-form-group">
+                        <label for="adminCurrentPassword">Current Password</label>
+                        <input type="password" id="adminCurrentPassword" required>
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="adminNewPassword">New Password</label>
+                        <input type="password" id="adminNewPassword" required placeholder="Min 8 chars, uppercase 1st, special char">
+                    </div>
+                    <div class="modal-form-group">
+                        <label for="adminConfirmPassword">Confirm New Password</label>
+                        <input type="password" id="adminConfirmPassword" required>
+                    </div>
+                    <button type="submit" class="btn-secondary" style="border-color: #2563eb; color: #2563eb;">
+                        <i class="fas fa-key"></i> Update Password
+                    </button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeAdminProfileModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="adminToast" class="admin-toast"></div>
+
+    <!-- Super Admin Controller Script -->
+    <script src="js/admin_dashboard.js?v=4"></script>
+</body>
+
+</html>

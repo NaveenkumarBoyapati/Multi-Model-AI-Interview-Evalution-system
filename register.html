@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Interview Evaluation System | Create Account</title>
+
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="css/style.css?v=4">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="left-panel">           
+
+        <img id="slide" src="images/slide1.png" alt="AI Image">
+
+        <div class="overlay">
+
+            <h1 id="title">AI Interview Evaluation</h1>
+
+            <p id="subtitle">Practice • Analyze • Improve</p>
+
+        </div>
+
+    </div>
+
+    <div class="right-panel">           
+
+        <div class="login-box">
+
+            <h1 id="formHeading">Create an Account</h1>
+            <p id="formSubheading" style="text-align: center; color: #64748b; font-size: 14px; margin-bottom: 20px;">Start your journey to interview mastery</p>
+
+            <div class="auth-tabs">
+                <a href="login.html" class="auth-tab-btn" style="text-align: center; text-decoration: none;">
+                    <i class="fas fa-right-to-bracket"></i> Sign In
+                </a>
+                <button type="button" class="auth-tab-btn active">
+                    <i class="fas fa-user-plus"></i> Create Account
+                </button>
+            </div>
+
+            <div id="authAlert" class="auth-alert"></div>
+
+            <!-- Standalone Register Form -->
+            <form id="registerForm" action="javascript:void(0);" onsubmit="return handleRegister(event);">
+
+                <label for="regName">Full Name</label>
+                <input
+                    type="text"
+                    id="regName"
+                    name="regName"
+                    placeholder="Enter your full name"
+                    required>
+
+                <label for="regRole">Preferred Interview Role</label>
+                <select id="regRole" name="regRole" required>
+                    <option value="Python Developer" selected>Python Developer</option>
+                    <option value="Data Analyst">Data Analyst</option>
+                    <option value="Web Developer">Web Developer</option>
+                    <option value="Java Developer">Java Developer</option>
+                </select>
+
+                <label for="regEmail">Email Address</label>
+                <input
+                    type="email"
+                    id="regEmail"
+                    name="regEmail"
+                    placeholder="name@example.com"
+                    autocomplete="email"
+                    required>
+
+                <label for="regPassword">Password</label>
+                <input
+                    type="password"
+                    id="regPassword"
+                    name="regPassword"
+                    placeholder="Create a secure password"
+                    autocomplete="new-password"
+                    required>
+
+                <!-- Real-time Password Rules Checklist -->
+                <div class="pwd-rules" id="pwdRulesBox">
+                    <div class="pwd-rules-title">Password Requirements:</div>
+                    <div class="pwd-rule-item" id="ruleMinLength">
+                        <span class="icon"><i class="fas fa-circle-xmark"></i></span>
+                        <span>Minimum 8 characters</span>
+                    </div>
+                    <div class="pwd-rule-item" id="ruleFirstUpper">
+                        <span class="icon"><i class="fas fa-circle-xmark"></i></span>
+                        <span>First character must be uppercase letter (A-Z)</span>
+                    </div>
+                    <div class="pwd-rule-item" id="ruleSpecialChar">
+                        <span class="icon"><i class="fas fa-circle-xmark"></i></span>
+                        <span>At least one special character (@, #, $, !, etc.)</span>
+                    </div>
+                </div>
+
+                <label for="regConfirmPassword">Confirm Password</label>
+                <input
+                    type="password"
+                    id="regConfirmPassword"
+                    name="regConfirmPassword"
+                    placeholder="Confirm your password"
+                    autocomplete="new-password"
+                    required>
+
+                <button type="submit" id="registerBtn">
+                    <i class="fas fa-user-check"></i> Create Account
+                </button>
+
+                <div class="auth-divider">
+                    <span>Already have an account?</span>
+                </div>
+
+                <a href="login.html" class="signin-switch-btn" id="btnGoToLogin">
+                    <i class="fas fa-right-to-bracket"></i> Sign In to Existing Account
+                </a>
+
+                <p class="auth-switch-note">
+                    Already registered? <a href="login.html"><strong>Sign In</strong></a>
+                </p>
+
+            </form>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="js/login.js?v=4"></script>
+
+</body>
+
+</html>

@@ -1,0 +1,1016 @@
+/* =========================================
+   AI INTERVIEW PAGE
+   Multi-model AI Interview Evaluation System
+========================================= */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --secondary: #0f172a;
+    --background: #f5f7fb;
+    --white: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --success: #16a34a;
+    --danger: #ef4444;
+    --light-blue: #eff6ff;
+}
+
+body {
+    font-family: "Poppins", sans-serif;
+    background: var(--background);
+    color: var(--text);
+    min-height: 100vh;
+}
+
+
+/* =========================================
+   MAIN CONTAINER
+========================================= */
+
+.interview-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+
+/* =========================================
+   HEADER
+========================================= */
+
+.interview-header {
+    height: 72px;
+    background: var(--white);
+    border-bottom: 1px solid var(--border);
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 35px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-left,
+.header-right {
+    display: flex;
+    align-items: center;
+}
+
+
+/* Logo */
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--secondary);
+}
+
+.logo i {
+    width: 38px;
+    height: 38px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: var(--primary);
+    color: white;
+
+    border-radius: 10px;
+}
+
+
+/* Question Counter */
+
+.header-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.question-count {
+    font-size: 14px;
+    color: var(--muted);
+
+    background: #f8fafc;
+    border: 1px solid var(--border);
+
+    padding: 9px 18px;
+    border-radius: 30px;
+}
+
+.question-count strong {
+    color: var(--primary);
+}
+
+
+/* Timer */
+
+.timer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    padding: 9px 16px;
+
+    background: #fff7ed;
+    color: #ea580c;
+
+    border-radius: 9px;
+
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.timer i {
+    font-size: 15px;
+}
+
+
+/* =========================================
+   MAIN CONTENT
+========================================= */
+
+.interview-content {
+    width: 94%;
+    max-width: 1400px;
+
+    margin: 30px auto;
+
+    display: grid;
+    grid-template-columns: 1.25fr 0.75fr;
+
+    gap: 25px;
+
+    flex: 1;
+}
+
+
+/* =========================================
+   QUESTION SECTION
+========================================= */
+
+.question-section {
+    background: var(--white);
+
+    border: 1px solid var(--border);
+    border-radius: 18px;
+
+    padding: 30px;
+
+    box-shadow: 0 5px 20px rgba(15, 23, 42, 0.04);
+}
+
+
+/* Section Title */
+
+.section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+
+    margin-bottom: 22px;
+
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.difficulty {
+    background: #eff6ff;
+    color: var(--primary);
+
+    padding: 6px 13px;
+    border-radius: 20px;
+
+    font-size: 12px;
+}
+
+
+/* Question Card */
+
+.question-card {
+    background: linear-gradient(
+        135deg,
+        #eff6ff,
+        #f8fbff
+    );
+
+    border: 1px solid #dbeafe;
+
+    border-radius: 15px;
+
+    padding: 30px;
+
+    margin-bottom: 22px;
+}
+
+.question-number {
+    color: var(--primary);
+
+    font-size: 13px;
+    font-weight: 600;
+
+    margin-bottom: 14px;
+}
+
+.question-card h1 {
+    font-size: 25px;
+    line-height: 1.5;
+
+    color: var(--secondary);
+
+    margin-bottom: 15px;
+}
+
+.question-hint {
+    color: var(--muted);
+
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+
+/* =========================================
+   RECORDING STATUS
+========================================= */
+
+.recording-status {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+
+    background: #f8fafc;
+
+    border: 1px solid var(--border);
+
+    border-radius: 13px;
+
+    padding: 16px 18px;
+
+    margin-bottom: 20px;
+}
+
+.status-icon {
+    width: 44px;
+    height: 44px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #eff6ff;
+    color: var(--primary);
+
+    border-radius: 50%;
+}
+
+.recording-status strong {
+    font-size: 14px;
+}
+
+.recording-status p {
+    color: var(--muted);
+
+    font-size: 12px;
+
+    margin-top: 3px;
+}
+
+
+/* =========================================
+   BUTTON CONTROLS
+========================================= */
+
+.controls {
+    display: flex;
+    gap: 12px;
+
+    margin-bottom: 28px;
+}
+
+.controls button {
+    height: 48px;
+
+    border: none;
+    border-radius: 10px;
+
+    padding: 0 22px;
+
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: 0.25s ease;
+}
+
+
+/* Record */
+
+.record-btn {
+    background: var(--primary);
+    color: white;
+
+    flex: 1;
+}
+
+.record-btn:hover:not(:disabled) {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+}
+
+.record-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+
+/* Stop */
+
+.stop-btn {
+    background: #fee2e2;
+    color: var(--danger);
+
+    min-width: 110px;
+}
+
+.stop-btn:hover:not(:disabled) {
+    background: #fecaca;
+}
+
+.stop-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+
+/* =========================================
+   QUESTION NAVIGATION
+========================================= */
+
+.question-navigation {
+    display: flex;
+    justify-content: space-between;
+
+    gap: 15px;
+}
+
+.question-navigation button {
+    height: 46px;
+
+    padding: 0 20px;
+
+    border-radius: 10px;
+
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: 0.25s ease;
+}
+
+
+/* Previous */
+
+.secondary-btn {
+    background: white;
+
+    color: var(--muted);
+
+    border: 1px solid var(--border);
+}
+
+.secondary-btn:hover:not(:disabled) {
+    background: #f8fafc;
+}
+
+.secondary-btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+
+/* Next */
+
+.primary-btn {
+    background: var(--primary);
+    color: white;
+
+    border: none;
+}
+
+.primary-btn:hover {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+}
+
+
+/* =========================================
+   CAMERA SECTION
+========================================= */
+
+.camera-section {
+    background: var(--white);
+
+    border: 1px solid var(--border);
+    border-radius: 18px;
+
+    padding: 25px;
+
+    box-shadow: 0 5px 20px rgba(15, 23, 42, 0.04);
+}
+
+
+/* Camera Header */
+
+.camera-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 18px;
+}
+
+.camera-header h2 {
+    font-size: 17px;
+}
+
+.camera-header p {
+    color: var(--muted);
+
+    font-size: 12px;
+
+    margin-top: 3px;
+}
+
+
+/* Camera Status */
+
+.camera-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+
+    color: var(--success);
+
+    background: #f0fdf4;
+
+    padding: 6px 10px;
+
+    border-radius: 20px;
+
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.status-dot {
+    width: 7px;
+    height: 7px;
+
+    background: var(--success);
+
+    border-radius: 50%;
+}
+
+
+/* =========================================
+   CAMERA BOX
+========================================= */
+
+.camera-box {
+    width: 100%;
+
+    aspect-ratio: 16 / 10;
+
+    background: #0f172a;
+
+    border-radius: 14px;
+
+    overflow: hidden;
+
+    position: relative;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    margin-bottom: 18px;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+#cameraPreview {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: none;
+    border-radius: 14px;
+    transform: scaleX(-1);
+}
+
+#cameraPreview.virtual-camera-mode {
+    transform: none !important;
+}
+
+.camera-placeholder {
+    text-align: center;
+
+    color: white;
+
+    padding: 20px;
+}
+
+.camera-icon {
+    width: 65px;
+    height: 65px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    margin: 0 auto 15px;
+
+    background: rgba(255, 255, 255, 0.1);
+
+    border-radius: 50%;
+
+    font-size: 25px;
+}
+
+.camera-placeholder h3 {
+    font-size: 16px;
+
+    margin-bottom: 7px;
+}
+
+.camera-placeholder p {
+    max-width: 260px;
+
+    margin: 0 auto 18px;
+
+    color: #94a3b8;
+
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+
+/* Camera Button */
+
+.camera-btn {
+    background: var(--primary);
+    color: white;
+
+    border: none;
+
+    padding: 10px 17px;
+
+    border-radius: 8px;
+
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: 0.25s ease;
+}
+
+.camera-btn:hover {
+    background: var(--primary-dark);
+}
+
+.camera-btn.virtual-btn:hover {
+    background: #047857 !important;
+}
+
+
+/* =========================================
+   DEVICE STATUS
+========================================= */
+
+.device-status {
+    display: grid;
+
+    grid-template-columns: 1fr 1fr;
+
+    gap: 12px;
+}
+
+.device-item {
+    display: flex;
+    align-items: center;
+
+    gap: 10px;
+
+    padding: 12px;
+
+    background: #f8fafc;
+
+    border: 1px solid var(--border);
+
+    border-radius: 10px;
+}
+
+.device-icon {
+    width: 34px;
+    height: 34px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: #eff6ff;
+    color: var(--primary);
+
+    border-radius: 8px;
+
+    font-size: 13px;
+}
+
+.device-item strong {
+    display: block;
+
+    font-size: 11px;
+}
+
+.device-item span {
+    display: block;
+
+    margin-top: 2px;
+
+    color: var(--muted);
+
+    font-size: 10px;
+}
+
+
+/* =========================================
+   FOOTER
+========================================= */
+
+.interview-footer {
+    min-height: 65px;
+
+    background: var(--white);
+
+    border-top: 1px solid var(--border);
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    padding: 0 35px;
+}
+
+.footer-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    color: var(--muted);
+
+    font-size: 12px;
+}
+
+.footer-info i {
+    color: var(--primary);
+}
+
+
+/* Finish Button */
+
+.finish-btn {
+    border: none;
+
+    background: #fee2e2;
+    color: var(--danger);
+
+    padding: 10px 17px;
+
+    border-radius: 8px;
+
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition: 0.25s ease;
+}
+
+.finish-btn:hover {
+    background: #fecaca;
+}
+
+
+/* =========================================
+   RECORDING ACTIVE STATE
+========================================= */
+
+.recording-active {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+
+.recording-active .status-icon {
+    background: #fee2e2;
+    color: var(--danger);
+
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+
+    0% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.08);
+    }
+
+    100% {
+        transform: scale(1);
+    }
+}
+
+
+/* =========================================
+   RESPONSIVE DESIGN
+========================================= */
+
+@media (max-width: 1100px) {
+
+    .interview-content {
+        grid-template-columns: 1fr;
+    }
+
+    .camera-section {
+        order: -1;
+    }
+
+    .camera-box {
+        aspect-ratio: 16 / 7;
+    }
+}
+
+
+@media (max-width: 768px) {
+
+    .interview-header {
+        padding: 0 18px;
+    }
+
+    .header-center {
+        display: none;
+    }
+
+    .logo span {
+        font-size: 17px;
+    }
+
+    .interview-content {
+        width: 94%;
+
+        margin: 20px auto;
+
+        gap: 18px;
+    }
+
+    .question-section,
+    .camera-section {
+        padding: 20px;
+    }
+
+    .question-card {
+        padding: 22px;
+    }
+
+    .question-card h1 {
+        font-size: 20px;
+    }
+
+    .device-status {
+        grid-template-columns: 1fr;
+    }
+
+    .interview-footer {
+        padding: 0 18px;
+    }
+
+    .footer-info {
+        display: none;
+    }
+}
+
+
+@media (max-width: 480px) {
+
+    .interview-header {
+        height: 62px;
+    }
+
+    .timer {
+        padding: 7px 10px;
+        font-size: 12px;
+    }
+
+    .question-section,
+    .camera-section {
+        border-radius: 14px;
+    }
+
+    .controls {
+        flex-direction: column;
+    }
+
+    .stop-btn {
+        width: 100%;
+    }
+
+    .question-navigation {
+        flex-direction: column;
+    }
+
+    .question-navigation button {
+        width: 100%;
+    }
+
+    .camera-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .camera-box {
+        aspect-ratio: 4 / 3;
+    }
+
+    .finish-btn {
+        padding: 8px 12px;
+    }
+}
+/* =========================================
+   INTERVIEW ACTION BUTTONS
+   ========================================= */
+
+/* Common button size and styling */
+
+#nextBtn,
+#previousBtn,
+#finishBtn {
+    min-width: 160px;
+    min-height: 52px;
+
+    padding: 15px 28px !important;
+
+    font-size: 17px !important;
+    font-weight: 600 !important;
+
+    border-radius: 10px !important;
+
+    cursor: pointer !important;
+
+    color: #ffffff !important;
+
+    border-width: 1px !important;
+    border-style: solid !important;
+
+    transition:
+        background 0.2s ease,
+        border-color 0.2s ease,
+        transform 0.2s ease,
+        box-shadow 0.2s ease !important;
+}
+
+
+/* =========================================
+   NEXT QUESTION - BLUE
+   ========================================= */
+
+#nextBtn {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+}
+
+
+/* Next Question Hover */
+
+#nextBtn:hover {
+    background: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
+
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 6px 15px rgba(37, 99, 235, 0.25);
+}
+
+
+/* =========================================
+   FINISH INTERVIEW - RED
+   ========================================= */
+
+#finishBtn {
+    background: #dc2626 !important;
+    border-color: #dc2626 !important;
+}
+
+
+/* Finish Interview Hover */
+
+#finishBtn:hover {
+    background: #b91c1c !important;
+    border-color: #b91c1c !important;
+
+    transform: translateY(-1px);
+
+    box-shadow:
+        0 6px 15px rgba(220, 38, 38, 0.25);
+}
+
+
+/* =========================================
+   BUTTON ICONS
+   ========================================= */
+
+#nextBtn i,
+#finishBtn i {
+    font-size: 17px;
+
+    margin-left: 6px;
+}
+
+
+/* =========================================
+   ACTIVE / CLICK EFFECT
+   ========================================= */
+
+#nextBtn:active,
+#finishBtn:active {
+    transform: translateY(0);
+
+    box-shadow: none;
+}
+
+
+/* =========================================
+   DISABLED BUTTON
+   ========================================= */
+
+#nextBtn:disabled,
+#finishBtn:disabled {
+    opacity: 0.6;
+
+    cursor: not-allowed;
+
+    transform: none;
+
+    box-shadow: none;
+}
+
+
+/* =========================================
+   MOBILE SCREEN
+   ========================================= */
+
+@media (max-width: 600px) {
+
+    #nextBtn,
+    #finishBtn {
+        min-width: 145px !important;
+        min-height: 50px !important;
+
+        padding: 13px 20px !important;
+
+        font-size: 15px !important;
+    }
+
+
+    #nextBtn i,
+    #finishBtn i {
+        font-size: 15px;
+
+        margin-left: 4px;
+    }
+}

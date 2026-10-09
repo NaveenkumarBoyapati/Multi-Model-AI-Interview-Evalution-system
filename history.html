@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interview History | AI Interview System</title>
+<link rel="stylesheet" href="css/history.css?v=3">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>Multi-model AI Interview Evaluation System</h1>
+
+<h2>Interview History</h2>
+
+<table>
+<thead>
+<tr>
+<th>Date</th>
+<th>Role</th>
+<th>Score</th>
+<th>Status</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody id="historyBody">
+<tr>
+<td colspan="5" style="text-align: center; color: #666; padding: 20px;">Loading your interview history...</td>
+</tr>
+</tbody>
+</table>
+
+<button onclick="window.location.href='dashboard.html'">
+Back to Dashboard
+</button>
+
+</div>
+
+<script>
+async function loadHistory() {
+    const token = localStorage.getItem("sessionToken") || sessionStorage.getItem("sessionToken");
+    const tbody = document.getElementById("historyBody");
+    if (!token) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px; color: #b91c1c;">Please log in to view your interview history.</td></tr>';
+        return;
+    }
+
+    try {
+        const res = await fetch("/api/dashboard/summary", {
+            headers: { "Authorization": `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error("Failed to load history");
+        const data = await res.json();
+        const history = data.history || [];
+
+        if (history.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px; color: #64748b;">No interview records found. Start your first interview from the dashboard.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = history.map(h => {
+            const rawStatus = String(h.status || "").trim().toLowerCase();
+            const isTerm = rawStatus === "terminated";
+            const statusClass = isTerm ? "status-terminated" : "status-completed";
+            const statusLabel = isTerm ? "Terminated" : "Completed";
+            const statusIcon = isTerm ? "🔴" : "🟢";
+
+            let scoreDisplay = "--";
+            if (!isTerm && h.overall_score !== null && h.overall_score !== undefined && String(h.overall_score).trim() !== "" && String(h.overall_score).toLowerCase() !== "null") {
+                scoreDisplay = `${h.overall_score}%`;
+            }
+
+            return `
+            <tr>
+                <td>${h.date}</td>
+                <td><strong>${h.role}</strong></td>
+                <td><strong style="color: ${isTerm ? '#64748b' : '#2563eb'}; font-size: 14px;">${scoreDisplay}</strong></td>
+                <td>
+                    <span class="${statusClass}">
+                        ${statusIcon} ${statusLabel}
+                    </span>
+                </td>
+                <td>
+                    <button style="margin-top: 0; padding: 6px 14px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;" onclick="window.location.href='${h.report_url}'">
+                        View Report
+                    </button>
+                </td>
+            </tr>
+            `;
+        }).join('');
+    } catch (e) {
+        console.error(e);
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px; color: #b91c1c;">Unable to load history.</td></tr>';
+    }
+}
+document.addEventListener("DOMContentLoaded", loadHistory);
+</script>
+
+</body>
+</html>

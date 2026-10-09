@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Interview | Multi-model AI Interview Evaluation System</title>
+
+
+    <link rel="icon" href="data:,">
+    <!-- Interview CSS -->
+    <link rel="stylesheet" href="css/interview.css?v=2">
+
+
+    <!-- Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap"
+        rel="stylesheet"
+    >
+
+
+    <!-- Font Awesome -->
+    <link
+        rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    >
+
+
+    <!-- =========================================
+         INTERVIEW BUTTON IMPROVEMENTS
+         ========================================= -->
+
+    <style>
+
+        /* Common button size */
+        #nextBtn,
+        #finishBtn {
+            min-width: 190px !important;
+            min-height: 56px !important;
+            padding: 15px 28px !important;
+            font-size: 17px !important;
+            font-weight: 600 !important;
+            border-radius: 10px !important;
+            cursor: pointer !important;
+            color: #ffffff !important;
+            border-width: 1px !important;
+            border-style: solid !important;
+            transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease !important;
+        }
+
+        /* Next Question - Blue */
+        #nextBtn {
+            background: #2563eb !important;
+            border-color: #2563eb !important;
+        }
+
+        #nextBtn:hover {
+            background: #1d4ed8 !important;
+            border-color: #1d4ed8 !important;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 15px rgba(37, 99, 235, 0.25) !important;
+        }
+
+        /* Finish Interview - Red */
+        #finishBtn {
+            background: #dc2626 !important;
+            border-color: #dc2626 !important;
+        }
+
+        #finishBtn:hover {
+            background: #b91c1c !important;
+            border-color: #b91c1c !important;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 15px rgba(220, 38, 38, 0.25) !important;
+        }
+
+        /* Last question: nextBtn becomes Finish Interview */
+        #nextBtn.finish-mode {
+            background: #dc2626 !important;
+            border-color: #dc2626 !important;
+        }
+
+        #nextBtn.finish-mode:hover {
+            background: #b91c1c !important;
+            border-color: #b91c1c !important;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 15px rgba(220, 38, 38, 0.25) !important;
+        }
+
+        /* Icons */
+        #nextBtn i,
+        #finishBtn i {
+            font-size: 17px;
+            margin-left: 6px;
+        }
+
+        /* Active */
+        #nextBtn:active,
+        #finishBtn:active {
+            transform: translateY(0);
+            box-shadow: none !important;
+        }
+
+        /* Disabled */
+        #nextBtn:disabled,
+        #finishBtn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none !important;
+        }
+
+        /* Mobile */
+        @media (max-width: 600px) {
+            #nextBtn,
+            #finishBtn {
+                min-width: 145px !important;
+                min-height: 50px !important;
+                padding: 13px 20px !important;
+                font-size: 15px !important;
+            }
+
+            #nextBtn i,
+            #finishBtn i {
+                font-size: 15px;
+                margin-left: 4px;
+            }
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <!-- =========================================
+         MAIN INTERVIEW CONTAINER
+         ========================================= -->
+
+    <div class="interview-container">
+
+
+        <!-- =========================================
+             HEADER
+             ========================================= -->
+
+        <header class="interview-header">
+
+
+            <!-- Header Left -->
+
+            <div class="header-left">
+
+                <div class="logo">
+
+                    <i class="fa-solid fa-robot"></i>
+
+                    <span>
+                        AI Interview
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <!-- Header Center -->
+
+            <div class="header-center">
+
+                <span class="question-count">
+
+                    Question
+
+                    <strong id="currentQuestion">
+                        1
+                    </strong>
+
+                    of
+
+                    <strong id="totalQuestions">
+                        20
+                    </strong>
+
+                </span>
+
+            </div>
+
+
+            <!-- Header Right -->
+
+            <div class="header-right">
+
+                <div class="timer">
+
+                    <i class="fa-regular fa-clock"></i>
+
+                    <span id="timer">
+                        40:00
+                    </span>
+
+                </div>
+
+            </div>
+
+        </header>
+
+
+
+        <!-- =========================================
+             INTERVIEW CONTENT
+             ========================================= -->
+
+        <main class="interview-content">
+
+
+            <!-- =========================================
+                 LEFT SECTION
+                 ========================================= -->
+
+            <section class="question-section">
+
+
+                <!-- Section Title -->
+
+                <div class="section-title">
+
+                    <span>
+                        Interview Question
+                    </span>
+
+                    <span class="difficulty">
+                        Medium
+                    </span>
+
+                </div>
+
+
+
+                <!-- Question Card -->
+
+                <div class="question-card">
+
+
+                    <div class="question-number">
+
+                        Question 01
+
+                    </div>
+
+
+                    <h1 id="questionText">
+
+                        What is Object-Oriented Programming and
+                        what are its main principles?
+
+                    </h1>
+
+
+                    <p class="question-hint">
+
+                        Explain the concept clearly and provide
+                        a suitable example.
+
+                    </p>
+
+                </div>
+
+
+
+                <!-- =========================================
+                     RECORDING STATUS
+                     ========================================= -->
+
+                <div
+                    class="recording-status"
+                    id="recordingStatus"
+                >
+
+
+                    <div class="status-icon">
+
+                        <i class="fa-solid fa-microphone"></i>
+
+                    </div>
+
+
+                    <div>
+
+                        <strong>
+                            Ready to Record
+                        </strong>
+
+                        <p>
+                            Click the button below to start answering.
+                        </p>
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- =========================================
+                     RECORDING CONTROLS
+                     ========================================= -->
+
+                <div class="controls">
+
+
+                    <!-- Start Recording -->
+
+                    <button
+                        class="record-btn"
+                        id="recordBtn"
+                        disabled
+                    >
+
+                        <i class="fa-solid fa-microphone"></i>
+
+                        Start Recording
+
+                    </button>
+
+
+
+                    <!-- Stop Recording -->
+
+                    <button
+                        class="stop-btn"
+                        id="stopBtn"
+                        disabled
+                    >
+
+                        <i class="fa-solid fa-stop"></i>
+
+                        Stop
+
+                    </button>
+
+                </div>
+
+
+
+                <!-- =========================================
+                     QUESTION NAVIGATION
+                     ========================================= -->
+
+                <div class="question-navigation">
+
+
+                    <!-- Previous -->
+
+                    <button
+                        class="secondary-btn"
+                        id="previousBtn"
+                        disabled
+                    >
+
+                        <i class="fa-solid fa-arrow-left"></i>
+
+                        Previous
+
+                    </button>
+
+
+
+                    <!-- Next Question -->
+
+                    <button
+                        class="primary-btn"
+                        id="nextBtn"
+                    >
+
+                        Next Question
+
+                        <i class="fa-solid fa-arrow-right"></i>
+
+                    </button>
+
+                </div>
+
+
+            </section>
+
+
+
+            <!-- =========================================
+                 RIGHT SECTION
+                 ========================================= -->
+
+            <section class="camera-section">
+
+
+                <!-- Camera Header -->
+
+                <div class="camera-header">
+
+
+                    <div>
+
+                        <h2>
+                            Interview Camera
+                        </h2>
+
+                        <p>
+                            Your camera preview
+                        </p>
+
+                    </div>
+
+
+                    <span class="camera-status">
+
+                        <span class="status-dot"></span>
+
+                        Camera Ready
+
+                    </span>
+
+                </div>
+
+
+
+                <!-- =========================================
+                     CAMERA BOX
+                     ========================================= -->
+
+                <div class="camera-box">
+
+                    <!-- Live Video Element -->
+                    <video
+                        id="cameraPreview"
+                        autoplay
+                        muted
+                        playsinline
+                    ></video>
+
+                    <!-- Camera Placeholder -->
+                    <div class="camera-placeholder" id="cameraPlaceholder">
+
+                        <div class="camera-icon">
+                            <i class="fa-solid fa-video"></i>
+                        </div>
+
+                        <h3>
+                            Camera Preview
+                        </h3>
+
+                        <p id="cameraNotice">
+                            Your camera preview will appear here during the interview.
+                        </p>
+
+                        <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+                            <!-- Enable Camera -->
+                            <button
+                                class="camera-btn"
+                                id="cameraBtn"
+                                type="button"
+                            >
+                                <i class="fa-solid fa-video"></i>
+                                Enable Camera
+                            </button>
+
+                            <!-- Virtual Camera -->
+                            <button
+                                class="camera-btn virtual-btn"
+                                id="virtualCameraBtn"
+                                type="button"
+                                style="background: #059669;"
+                            >
+                                <i class="fa-solid fa-user-astronaut"></i>
+                                Use Virtual Camera
+                            </button>
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+
+                <!-- =========================================
+                     DEVICE STATUS
+                     ========================================= -->
+
+                <div class="device-status">
+
+
+                    <!-- Microphone -->
+
+                    <div class="device-item">
+
+
+                        <div class="device-icon">
+
+                            <i class="fa-solid fa-microphone"></i>
+
+                        </div>
+
+
+                        <div>
+
+                            <strong>
+                                Microphone
+                            </strong>
+
+                            <span id="micStatus">
+                                Not Connected
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+
+                    <!-- Camera -->
+
+                    <div class="device-item">
+
+
+                        <div class="device-icon">
+
+                            <i class="fa-solid fa-video"></i>
+
+                        </div>
+
+
+                        <div>
+
+                            <strong>
+                                Camera
+                            </strong>
+
+                            <span id="cameraStatus">
+                                Not Connected
+                            </span>
+
+                        </div>
+
+                    </div>
+
+
+                </div>
+
+            </section>
+
+        </main>
+
+
+
+        <!-- =========================================
+             FOOTER
+             ========================================= -->
+
+        <footer class="interview-footer">
+
+
+            <div class="footer-info">
+
+                <i class="fa-solid fa-circle-info"></i>
+
+                <span>
+
+                    Answer each question clearly and confidently.
+
+                </span>
+
+            </div>
+
+
+
+            <!-- Finish Interview -->
+
+            <button
+                class="finish-btn"
+                id="finishBtn"
+            >
+
+                Finish Interview
+
+                <i class="fa-solid fa-flag-checkered"></i>
+
+            </button>
+
+
+        </footer>
+
+
+    </div>
+
+
+
+    <!-- =========================================
+         INTERVIEW JAVASCRIPT
+         ========================================= -->
+
+    <script src="js/interview.js?v=8"></script>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const nextBtn = document.getElementById("nextBtn");
+            if (!nextBtn) return;
+
+            function updateNextButtonMode() {
+                const buttonText = nextBtn.textContent.trim().toLowerCase();
+                nextBtn.classList.toggle(
+                    "finish-mode",
+                    buttonText.includes("finish interview")
+                );
+            }
+
+            updateNextButtonMode();
+
+            const observer = new MutationObserver(updateNextButtonMode);
+            observer.observe(nextBtn, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+        });
+    </script>
+
+
+</body>
+
+</html>

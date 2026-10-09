@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Candidate Progress Dashboard | AI Interview System</title>
+
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="css/dashboard.css?v=6">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+<div class="container">
+
+    <!-- ================= Sidebar ================= -->
+    <aside class="sidebar">
+
+        <div class="logo">
+            <i class="fas fa-robot"></i>
+            <h2>AI Interview</h2>
+        </div>
+
+        <ul>
+            <li class="active">
+                <i class="fas fa-chart-line"></i>
+                <span>Dashboard</span>
+            </li>
+
+            <li onclick="location.href='role.html'">
+                <i class="fas fa-microphone"></i>
+                <span>Start Interview</span>
+            </li>
+
+            <li onclick="location.href='history.html'">
+                <i class="fas fa-clock-rotate-left"></i>
+                <span>History</span>
+            </li>
+
+            <li onclick="location.href='result.html'">
+                <i class="fas fa-chart-column"></i>
+                <span>Results</span>
+            </li>
+
+            <li onclick="location.href='profile.html'">
+                <i class="fas fa-user"></i>
+                <span>Profile</span>
+            </li>
+
+            <li onclick="location.href='change_password.html'">
+                <i class="fas fa-key"></i>
+                <span>Change Password</span>
+            </li>
+
+            <li id="sidebarAdminLink" onclick="location.href='admin_dashboard.html'" style="display: none;">
+                <i class="fas fa-shield-halved" style="color: #2563eb;"></i>
+                <span style="color: #2563eb; font-weight: 600;">Admin Dashboard</span>
+            </li>
+
+            <li onclick="handleDashboardLogout()">
+                <i class="fas fa-right-from-bracket"></i>
+                <span>Logout</span>
+            </li>
+        </ul>
+
+    </aside>
+
+    <!-- ================= Main Content ================= -->
+    <main class="main-content">
+
+        <!-- Top Navbar -->
+        <header class="navbar">
+
+            <div class="left-nav">
+                <button class="menu-btn" title="Toggle Sidebar">
+                    <i class="fas fa-bars"></i>
+                </button>
+
+                <div>
+                    <h1 id="greeting">
+                        Welcome Back 👋
+                    </h1>
+                    <p id="greetingSub">
+                        Track your mock interview progress, scoring trends, and skill milestones.
+                    </p>
+                </div>
+            </div>
+
+            <div class="right-nav">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="historySearchInput" placeholder="Search by role or date...">
+                </div>
+
+                <div class="notification" title="Notifications">
+                    <i class="fas fa-bell"></i>
+                    <span class="badge" style="display: none;"></span>
+                </div>
+
+                <div class="avatar" id="userAvatar" title="View Profile">
+                    CA
+                </div>
+            </div>
+
+        </header>
+
+        <!-- Loading Spinner Container -->
+        <div id="dashboardLoading" style="text-align: center; padding: 50px 20px; color: #64748b;">
+            <i class="fas fa-spinner fa-spin fa-2x" style="color: #2563eb;"></i>
+            <p style="margin-top: 12px; font-weight: 500; font-size: 15px;">Loading your progress dashboard...</p>
+        </div>
+
+        <!-- 10. EMPTY STATE (Displayed when user has 0 completed interviews) -->
+        <section id="emptyStateSection" class="empty-state-card" style="display: none;">
+            <div class="empty-icon">
+                <i class="fas fa-clipboard-question"></i>
+            </div>
+            <h2>No interviews yet.</h2>
+            <p>Start your first mock interview to track your progress, view your score trends, and receive AI-powered evaluations.</p>
+            <button class="start-btn" onclick="location.href='role.html'" style="display: inline-flex; align-items: center; gap: 8px; margin: 0 auto;">
+                <i class="fas fa-play"></i> Start Interview
+            </button>
+        </section>
+
+        <!-- Main Dashboard Data Container (Displayed when user has >= 1 interviews) -->
+        <div id="dashboardDataContainer" style="display: none;">
+
+            <!-- 5. PROGRESS SUMMARY BANNER -->
+            <section class="progress-banner">
+                <div class="progress-banner-content">
+                    <div class="progress-trend-badge" id="summaryTrendBadge">
+                        <i class="fas fa-chart-line"></i> <span id="summaryTrendText">Progress Summary</span>
+                    </div>
+                    <h3 id="summaryTitleText">Your score improved across your recent interviews.</h3>
+                    <p id="summaryDetailText">Keep practicing to reach your target performance.</p>
+                </div>
+                <div class="progress-banner-action">
+                    <button class="banner-action-btn" onclick="location.href='role.html'">
+                        <i class="fas fa-play"></i> Start New Interview
+                    </button>
+                </div>
+            </section>
+
+            <!-- 1. TOP STATISTICS CARDS (5 Cards) -->
+            <section class="stats stats-5">
+                <!-- Total Interviews -->
+                <div class="stat-card">
+                    <div class="icon blue">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div>
+                        <h4>Total Interviews</h4>
+                        <h2 id="statTotalInterviews">0</h2>
+                    </div>
+                </div>
+
+                <!-- Average Score -->
+                <div class="stat-card">
+                    <div class="icon green">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div>
+                        <h4>Average Score</h4>
+                        <h2 id="statAverageScore">0%</h2>
+                    </div>
+                </div>
+
+                <!-- Best Score -->
+                <div class="stat-card">
+                    <div class="icon orange">
+                        <i class="fas fa-trophy"></i>
+                    </div>
+                    <div>
+                        <h4>Best Score</h4>
+                        <h2 id="statBestScore">0%</h2>
+                    </div>
+                </div>
+
+                <!-- Latest Score -->
+                <div class="stat-card">
+                    <div class="icon purple">
+                        <i class="fas fa-bullseye"></i>
+                    </div>
+                    <div>
+                        <h4>Latest Score</h4>
+                        <h2 id="statLatestScore">0%</h2>
+                    </div>
+                </div>
+
+                <!-- This Month -->
+                <div class="stat-card">
+                    <div class="icon teal">
+                        <i class="fas fa-calendar-check"></i>
+                    </div>
+                    <div>
+                        <h4>This Month</h4>
+                        <h2 id="statMonthlyInterviews">0</h2>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. OVERALL PROGRESS CHART & 8. LATEST INTERVIEW CARD -->
+            <section class="dashboard-grid-2">
+                <!-- Overall Progress Line Chart -->
+                <div class="chart-card">
+                    <div class="section-title">
+                        <div>
+                            <h2>Overall Progress Chart</h2>
+                            <p class="section-subtitle">Chronological score progression across your completed mock interviews</p>
+                        </div>
+                    </div>
+                    <div class="chart-container" style="position: relative; height: 280px; width: 100%;">
+                        <canvas id="progressChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Latest Interview Highlight Card -->
+                <div class="latest-card" id="latestInterviewCard">
+                    <div class="section-title">
+                        <div>
+                            <h2>Latest Interview</h2>
+                            <p class="section-subtitle">Most recent performance</p>
+                        </div>
+                    </div>
+                    <div class="latest-card-body" id="latestCardBody">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. SKILL PERFORMANCE & 7. ROLE-WISE PERFORMANCE -->
+            <section class="dashboard-grid-equal">
+                <!-- Skill Performance Card -->
+                <div class="panel-card">
+                    <div class="section-title">
+                        <div>
+                            <h2>Skill Performance</h2>
+                            <p class="section-subtitle">Average score across evaluation dimensions</p>
+                        </div>
+                    </div>
+                    <div class="skills-container" id="skillsContainer">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- Role-Wise Performance Card -->
+                <div class="panel-card">
+                    <div class="section-title">
+                        <div>
+                            <h2>Role-Wise Performance</h2>
+                            <p class="section-subtitle">Average performance broken down by interview role</p>
+                        </div>
+                    </div>
+                    <div class="roles-container" id="rolesContainer">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6. STRENGTHS & AREAS TO IMPROVE -->
+            <section class="dashboard-grid-equal">
+                <!-- Top Strengths -->
+                <div class="panel-card feedback-panel">
+                    <div class="section-title">
+                        <div>
+                            <h2><i class="fas fa-circle-check" style="color: #16a34a; margin-right: 8px;"></i> Key Strengths</h2>
+                            <p class="section-subtitle">Identified from your AI evaluations</p>
+                        </div>
+                    </div>
+                    <ul class="feedback-list strengths-list" id="strengthsList">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+
+                <!-- Areas to Improve -->
+                <div class="panel-card feedback-panel">
+                    <div class="section-title">
+                        <div>
+                            <h2><i class="fas fa-arrow-trend-up" style="color: #f59e0b; margin-right: 8px;"></i> Areas to Improve</h2>
+                            <p class="section-subtitle">Targeted opportunities for your next interview</p>
+                        </div>
+                    </div>
+                    <ul class="feedback-list improvements-list" id="improvementsList">
+                        <!-- Populated by JS -->
+                    </ul>
+                </div>
+            </section>
+
+            <!-- 9. GOALS / ACHIEVEMENTS -->
+            <section class="panel-card" style="margin-bottom: 30px;">
+                <div class="section-title">
+                    <div>
+                        <h2>Goals & Milestones</h2>
+                        <p class="section-subtitle">Milestones achieved based on your mock interview history</p>
+                    </div>
+                </div>
+                <div class="achievements-grid" id="achievementsGrid">
+                    <!-- Populated by JS -->
+                </div>
+            </section>
+
+            <!-- 4. INTERVIEW HISTORY -->
+            <section class="activity">
+                <div class="section-title">
+                    <div>
+                        <h2>Interview History</h2>
+                        <p class="section-subtitle">Your previous mock interviews with scores and detailed reports</p>
+                    </div>
+                    <div id="historyCountBadge" class="history-count-badge">
+                        0 Interviews
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table id="historyTable">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Interview Role</th>
+                                <th>Score</th>
+                                <th>Performance</th>
+                                <th>Status</th>
+                                <th style="text-align: right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+
+    </main>
+
+</div>
+
+<script src="js/dashboard.js?v=6"></script>
+
+</body>
+
+</html>

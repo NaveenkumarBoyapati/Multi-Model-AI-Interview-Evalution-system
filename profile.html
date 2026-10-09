@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Profile | AI Interview System</title>
+    <link rel="icon" href="data:,">
+    
+    <!-- Google Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    
+    <!-- Profile CSS -->
+    <link rel="stylesheet" href="css/profile.css?v=3">
+</head>
+<body>
+
+    <!-- Branding Header -->
+    <header class="brand-header">
+        <h1>Multi-model AI Interview Evaluation System</h1>
+        <p>Candidate Profile & Account Settings</p>
+    </header>
+
+    <main class="profile-container">
+
+        <div class="profile-card">
+
+            <!-- Card Header with User Avatar -->
+            <div class="profile-card-header">
+                <div class="avatar-circle" id="userAvatar">U</div>
+                <h2 id="cardHeaderName">User Profile</h2>
+                <p id="cardHeaderRole">Candidate Account</p>
+            </div>
+
+            <!-- Dynamic Alert Box -->
+            <div id="profileAlert" class="alert-box" style="display: none;">
+                <i id="alertIcon" class="fa-solid fa-circle-check"></i>
+                <span id="alertMessage"></span>
+            </div>
+
+            <!-- Profile Form / Details -->
+            <div class="profile-card-body">
+
+                <!-- 1. PERSONAL INFORMATION -->
+                <section class="section-group">
+                    <div class="section-title">
+                        <i class="fa-solid fa-user"></i>
+                        <span>Personal Information</span>
+                    </div>
+
+                    <!-- Full Name -->
+                    <div class="field-item">
+                        <div class="field-label">
+                            <span>Full Name</span>
+                        </div>
+                        <div id="viewName" class="field-display">Loading...</div>
+                        <input 
+                            type="text" 
+                            id="editName" 
+                            class="form-input" 
+                            style="display: none;" 
+                            placeholder="Enter your full name" 
+                            maxlength="100"
+                            autocomplete="name"
+                        >
+                        <div id="nameError" class="field-error-msg">Full Name is required and cannot be empty.</div>
+                    </div>
+
+                    <!-- Email (Read-Only) -->
+                    <div class="field-item">
+                        <div class="field-label">
+                            <span>Email</span>
+                            <span class="badge-lock"><i class="fa-solid fa-lock"></i> Read-only</span>
+                        </div>
+                        <div id="viewEmail" class="field-display readonly-tint">Loading...</div>
+                    </div>
+
+                    <!-- Interview Role -->
+                    <div class="field-item">
+                        <div class="field-label">
+                            <span>Interview Role</span>
+                        </div>
+                        <div id="viewRole" class="field-display">
+                            <span class="role-tag" id="roleTagDisplay">
+                                <i class="fa-solid fa-briefcase"></i>
+                                <span id="roleText">Loading...</span>
+                            </span>
+                        </div>
+                        <select id="editRole" class="form-select" style="display: none;">
+                            <option value="Java Developer">Java Developer</option>
+                            <option value="Python Developer">Python Developer</option>
+                            <option value="Data Analyst">Data Analyst</option>
+                            <option value="Web Developer">Web Developer</option>
+                        </select>
+                        <div id="roleError" class="field-error-msg">Please select an interview role.</div>
+                    </div>
+                </section>
+
+                <!-- 2. ACCOUNT INFORMATION -->
+                <section class="section-group">
+                    <div class="section-title">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>Account Information</span>
+                    </div>
+
+                    <!-- Account Type (Read-Only) -->
+                    <div class="field-item">
+                        <div class="field-label">
+                            <span>Account Type</span>
+                            <span class="badge-lock"><i class="fa-solid fa-lock"></i> Read-only</span>
+                        </div>
+                        <div id="viewAccountType" class="field-display readonly-tint">User</div>
+                    </div>
+
+                    <!-- Member Since (Read-Only) -->
+                    <div class="field-item">
+                        <div class="field-label">
+                            <span>Member Since</span>
+                            <span class="badge-lock"><i class="fa-solid fa-lock"></i> Read-only</span>
+                        </div>
+                        <div id="viewMemberSince" class="field-display readonly-tint">Loading...</div>
+                    </div>
+                </section>
+
+                <!-- 3. ACTIONS -->
+                <div class="button-section">
+                    
+                    <!-- Edit / Save / Cancel Actions -->
+                    <div class="primary-actions">
+                        <!-- View mode button -->
+                        <button id="editBtn" class="btn btn-primary" onclick="enterEditMode()">
+                            <i class="fa-solid fa-pen-to-square"></i> Edit Profile
+                        </button>
+
+                        <!-- Edit mode buttons -->
+                        <button id="saveBtn" class="btn btn-save" onclick="saveProfile()" style="display: none;">
+                            <i class="fa-solid fa-check"></i> Save Changes
+                        </button>
+                        <button id="cancelBtn" class="btn btn-secondary" onclick="cancelEdit()" style="display: none;">
+                            <i class="fa-solid fa-xmark"></i> Cancel
+                        </button>
+                    </div>
+
+                    <!-- Navigation Actions -->
+                    <div class="nav-actions">
+                        <button class="btn btn-outline" onclick="const isAdmin = localStorage.getItem('isAdmin') === 'true' || localStorage.getItem('userRole') === 'Admin'; window.location.href = isAdmin ? 'admin_dashboard.html' : 'dashboard.html';">
+                            <i class="fa-solid fa-house"></i> Back to Dashboard
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="window.location.href='change_password.html';">
+                            <i class="fa-solid fa-key"></i> Change Password
+                        </button>
+                        <button class="btn btn-outline-danger" onclick="handleProfileLogout();">
+                            <i class="fa-solid fa-right-from-bracket"></i> Logout
+                        </button>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Profile Logic Script -->
+    <script>
+        // Check session authentication
+        const token = localStorage.getItem("sessionToken") || sessionStorage.getItem("sessionToken");
+        if (!token) {
+            window.location.replace("login.html?auth_msg=login_required");
+        }
+
+        // Current loaded user state
+        let currentProfile = {
+            name: "",
+            email: "",
+            role: "Python Developer",
+            account_type: "User",
+            member_since: "Recent"
+        };
+
+        let isEditing = false;
+
+        // UI Element References
+        const viewName = document.getElementById("viewName");
+        const editName = document.getElementById("editName");
+        const nameError = document.getElementById("nameError");
+
+        const viewEmail = document.getElementById("viewEmail");
+
+        const viewRole = document.getElementById("viewRole");
+        const roleText = document.getElementById("roleText");
+        const editRole = document.getElementById("editRole");
+        const roleError = document.getElementById("roleError");
+
+        const viewAccountType = document.getElementById("viewAccountType");
+        const viewMemberSince = document.getElementById("viewMemberSince");
+
+        const userAvatar = document.getElementById("userAvatar");
+        const cardHeaderName = document.getElementById("cardHeaderName");
+        const cardHeaderRole = document.getElementById("cardHeaderRole");
+
+        const editBtn = document.getElementById("editBtn");
+        const saveBtn = document.getElementById("saveBtn");
+        const cancelBtn = document.getElementById("cancelBtn");
+
+        const alertBox = document.getElementById("profileAlert");
+        const alertIcon = document.getElementById("alertIcon");
+        const alertMessage = document.getElementById("alertMessage");
+
+        // Show temporary alert message
+        function showAlert(message, type = "success") {
+            alertBox.style.display = "flex";
+            alertBox.className = "alert-box " + (type === "success" ? "alert-success" : "alert-error");
+            alertIcon.className = type === "success" ? "fa-solid fa-circle-check" : "fa-solid fa-circle-exclamation";
+            alertMessage.textContent = message;
+        }
+
+        function hideAlert() {
+            alertBox.style.display = "none";
+        }
+
+        // Render loaded data into UI
+        function populateProfileUI(data) {
+            currentProfile.name = data.name || "Candidate";
+            currentProfile.email = data.email || "";
+            currentProfile.role = data.role || data.preferred_role || "Python Developer";
+            currentProfile.account_type = data.account_type || (data.is_admin ? "Administrator" : "User");
+            currentProfile.member_since = data.member_since || "Recent";
+
+            // View Displays
+            viewName.textContent = currentProfile.name;
+            viewEmail.textContent = currentProfile.email;
+            roleText.textContent = currentProfile.role;
+            viewAccountType.textContent = currentProfile.account_type;
+            viewMemberSince.textContent = currentProfile.member_since;
+
+            // Header card
+            cardHeaderName.textContent = currentProfile.name;
+            cardHeaderRole.textContent = currentProfile.role;
+            
+            // Avatar initials
+            const initials = currentProfile.name
+                .split(" ")
+                .filter(Boolean)
+                .map(part => part[0])
+                .slice(0, 2)
+                .join("")
+                .toUpperCase() || "CA";
+            userAvatar.textContent = initials;
+
+            // Synchronize with client-side cache
+            try {
+                localStorage.setItem("userName", currentProfile.name);
+                localStorage.setItem("userEmail", currentProfile.email);
+                localStorage.setItem("selectedRole", currentProfile.role);
+            } catch (e) {}
+        }
+
+        // Fetch user profile from authenticated API
+        async function loadProfile() {
+            try {
+                const response = await fetch("/api/profile", {
+                    method: "GET",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    }
+                });
+
+                if (response.status === 401) {
+                    try {
+                        localStorage.clear();
+                        sessionStorage.clear();
+                    } catch (e) {}
+                    window.location.replace("login.html?auth_msg=session_expired");
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error("Unable to load profile from server.");
+                }
+
+                const data = await response.json();
+                if (data.status === "success" && data.user) {
+                    populateProfileUI(data.user);
+                } else {
+                    throw new Error("Invalid profile response format.");
+                }
+            } catch (err) {
+                console.error("Profile load error:", err);
+                showAlert("Failed to load profile. Please refresh or log in again.", "error");
+            }
+        }
+
+        // Enter Profile Edit Mode
+        function enterEditMode() {
+            hideAlert();
+            nameError.style.display = "none";
+            roleError.style.display = "none";
+            editName.classList.remove("input-error");
+
+            // Populate input values from currentProfile
+            editName.value = currentProfile.name;
+            editRole.value = currentProfile.role;
+
+            // Toggle view / edit elements
+            viewName.style.display = "none";
+            editName.style.display = "block";
+
+            viewRole.style.display = "none";
+            editRole.style.display = "block";
+
+            editBtn.style.display = "none";
+            saveBtn.style.display = "inline-flex";
+            cancelBtn.style.display = "inline-flex";
+
+            isEditing = true;
+            editName.focus();
+        }
+
+        // Exit Profile Edit Mode (Restore view)
+        function cancelEdit() {
+            hideAlert();
+            nameError.style.display = "none";
+            roleError.style.display = "none";
+            editName.classList.remove("input-error");
+
+            // Revert inputs
+            editName.value = currentProfile.name;
+            editRole.value = currentProfile.role;
+
+            // Toggle view / edit elements
+            editName.style.display = "none";
+            viewName.style.display = "flex";
+
+            editRole.style.display = "none";
+            viewRole.style.display = "flex";
+
+            saveBtn.style.display = "none";
+            cancelBtn.style.display = "none";
+            editBtn.style.display = "inline-flex";
+
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Save Changes';
+
+            isEditing = false;
+        }
+
+        // Save Profile Changes
+        async function saveProfile() {
+            hideAlert();
+            nameError.style.display = "none";
+            roleError.style.display = "none";
+            editName.classList.remove("input-error");
+
+            const trimmedName = editName.value.trim();
+            const selectedRole = editRole.value.trim();
+
+            // Client-side validation: Full Name
+            if (!trimmedName) {
+                editName.classList.add("input-error");
+                nameError.textContent = "Full Name is required and cannot be empty.";
+                nameError.style.display = "block";
+                editName.focus();
+                return;
+            }
+
+            // Client-side validation: Role
+            if (!selectedRole) {
+                roleError.textContent = "Interview Role is required.";
+                roleError.style.display = "block";
+                editRole.focus();
+                return;
+            }
+
+            // Disable buttons and show Saving indicator
+            saveBtn.disabled = true;
+            cancelBtn.disabled = true;
+            saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+            try {
+                const response = await fetch("/api/profile", {
+                    method: "PUT",
+                    headers: {
+                        "Authorization": `Bearer ${token}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        name: trimmedName,
+                        role: selectedRole
+                    })
+                });
+
+                if (response.status === 401) {
+                    try {
+                        localStorage.clear();
+                        sessionStorage.clear();
+                    } catch (e) {}
+                    window.location.replace("login.html?auth_msg=session_expired");
+                    return;
+                }
+
+                const result = await response.json();
+
+                if (!response.ok || result.status !== "success") {
+                    const errorMsg = result.detail || result.message || "Failed to update profile.";
+                    showAlert(errorMsg, "error");
+                    saveBtn.disabled = false;
+                    cancelBtn.disabled = false;
+                    saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Save Changes';
+                    return;
+                }
+
+                // Success
+                populateProfileUI(result.user);
+                cancelEdit();
+                showAlert("Profile updated successfully", "success");
+
+            } catch (err) {
+                console.error("Save profile error:", err);
+                showAlert("A network error occurred while updating profile.", "error");
+                saveBtn.disabled = false;
+                cancelBtn.disabled = false;
+                saveBtn.innerHTML = '<i class="fa-solid fa-check"></i> Save Changes';
+            }
+        }
+
+        // User Logout
+        function handleProfileLogout() {
+            if (token) {
+                fetch("/api/auth/logout", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${token}` }
+                }).catch(() => {});
+            }
+            try {
+                localStorage.clear();
+                sessionStorage.clear();
+            } catch (e) {}
+            window.location.href = "login.html";
+        }
+
+        // Initialize on DOM load
+        document.addEventListener("DOMContentLoaded", () => {
+            loadProfile();
+
+            // Submit on Enter key inside name input
+            editName.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") {
+                    e.preventDefault();
+                    saveProfile();
+                } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelEdit();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # AI Interview Application (FastAPI + Faster-Whisper + Frontend)
+  # Connects directly to Azure SQL Database or external SQL Server
+  app:
+    build: .
+    container_name: interview_app
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - DB_SERVER=${DB_SERVER}
+      - DB_NAME=${DB_NAME:-AIInterviewDB}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_DRIVER={ODBC Driver 18 for SQL Server}
+      - DB_ENCRYPT=yes
+      - DB_TRUST_SERVER_CERTIFICATE=no
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:8000}
+      - ENV=production
+      - WHISPER_MODEL_SIZE=base.en
+      - WHISPER_LANGUAGE=en
+    volumes:
+      # Persist uploaded candidate recordings
+      - uploads_data:/app/backend/uploads
+    env_file:
+      - .env
+
+volumes:
+  uploads_data:

@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Database files (Local SQLite)
+*.db
+*.sqlite
+*.sqlite3
+
+# Uploads and temporary media (Crucial: prevents pushing large video files to GitHub)
+backend/uploads/
+uploads/
+*.webm
+*.mp4
+*.wav
+*.mp3
+
+# Generated PDF Reports & Temp Docs
+*.pdf
+AI_Interview_Report_*.pdf
+
+# Operating System & IDE Files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Testing / Logs
+*.log
+chrome_e2e_results.json
