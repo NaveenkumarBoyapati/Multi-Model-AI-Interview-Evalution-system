@@ -3809,6 +3809,13 @@ async def upload_interview(
             shutil.copyfileobj(recording.file, buffer)
         t_save_end = time.time()
 
+        # Mirror recording to Cloudflare R2 persistent storage if configured
+        try:
+            from storage_service import upload_file_to_storage
+            upload_file_to_storage(file_path, f"recordings/{filename}", content_type="video/webm")
+        except Exception as st_err:
+            print(f"[Storage Service Notice] Local recording saved; R2 sync notice: {st_err}")
+
         file_size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
 
         print("\n" + "=" * 60)

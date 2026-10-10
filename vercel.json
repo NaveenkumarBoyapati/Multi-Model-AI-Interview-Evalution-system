@@ -2,20 +2,24 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/app/:path*",
+      "destination": "/:path*"
+    },
+    {
       "source": "/api/:path*",
-      "destination": "https://YOUR-BACKEND-URL.hf.space/api/:path*"
+      "destination": "https://YOUR-BACKEND.onrender.com/api/:path*"
     },
     {
       "source": "/interview/:path*",
-      "destination": "https://YOUR-BACKEND-URL.hf.space/interview/:path*"
+      "destination": "https://YOUR-BACKEND.onrender.com/interview/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://YOUR-BACKEND-URL.hf.space/uploads/:path*"
+      "destination": "https://YOUR-BACKEND.onrender.com/uploads/:path*"
     },
     {
       "source": "/health",
-      "destination": "https://YOUR-BACKEND-URL.hf.space/health"
+      "destination": "https://YOUR-BACKEND.onrender.com/health"
     }
   ]
 }

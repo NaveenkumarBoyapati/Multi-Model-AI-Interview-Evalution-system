@@ -1,30 +1,55 @@
-from faster_whisper import WhisperModel
 import os
 import time
 import numpy as np
 import av
+import httpx
 from typing import Dict, Any, Optional, Tuple, List
 
+try:
+    from env_loader import load_env
+except ImportError:
+    try:
+        from backend.env_loader import load_env
+    except ImportError:
+        def load_env(override=False):
+            return {}
+
+load_env()
 
 # ============================================
-# WHISPER MODEL CONFIGURATION & INITIALIZATION
+# SPEECH RECOGNITION CONFIGURATION
 # ============================================
 
-# Default to small.en for superior accuracy on Indian English and domain terminology,
-# with automatic fallback to base.en if needed.
-MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "small.en").strip()
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "").strip()
+GROQ_WHISPER_MODEL = os.getenv("GROQ_WHISPER_MODEL", "whisper-large-v3-turbo").strip()
+
+MODEL_SIZE = os.getenv("WHISPER_MODEL_SIZE", "tiny.en").strip()
 DEFAULT_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "en").strip()
 
-print(f"[Whisper STT] Initializing Faster-Whisper model ({MODEL_SIZE}) on CPU (compute_type=int8)...")
-try:
-    model = WhisperModel(MODEL_SIZE, device="cpu", compute_type="int8")
-    ACTIVE_MODEL_NAME = MODEL_SIZE
-    print(f"[Whisper STT] Model '{MODEL_SIZE}' loaded successfully.")
-except Exception as load_err:
-    print(f"[Whisper STT Warning] Failed to load '{MODEL_SIZE}': {load_err}. Falling back to 'base.en'...")
-    model = WhisperModel("base.en", device="cpu", compute_type="int8")
-    ACTIVE_MODEL_NAME = "base.en"
-    print("[Whisper STT] Fallback model 'base.en' loaded successfully.")
+# Lazy-loaded local Whisper instance (keeps RAM minimal until needed)
+_LOCAL_WHISPER_MODEL = None
+ACTIVE_MODEL_NAME = f"groq-{GROQ_WHISPER_MODEL}" if GROQ_API_KEY else MODEL_SIZE
+
+def get_local_whisper_model():
+    """
+    Lazy-loads Faster-Whisper model into memory ONLY when needed.
+    This prevents memory spikes and OOM on low-RAM containers like Render (512MB)
+    when Groq cloud transcription is active.
+    """
+    global _LOCAL_WHISPER_MODEL, ACTIVE_MODEL_NAME
+    if _LOCAL_WHISPER_MODEL is None:
+        from faster_whisper import WhisperModel
+        print(f"[Whisper STT] Lazy-loading Faster-Whisper model ({MODEL_SIZE}) on CPU (compute_type=int8)...")
+        try:
+            _LOCAL_WHISPER_MODEL = WhisperModel(MODEL_SIZE, device="cpu", compute_type="int8")
+            ACTIVE_MODEL_NAME = MODEL_SIZE
+            print(f"[Whisper STT] Local model '{MODEL_SIZE}' loaded successfully.")
+        except Exception as load_err:
+            print(f"[Whisper STT Warning] Failed to load '{MODEL_SIZE}': {load_err}. Falling back to 'base.en'...")
+            _LOCAL_WHISPER_MODEL = WhisperModel("base.en", device="cpu", compute_type="int8")
+            ACTIVE_MODEL_NAME = "base.en"
+            print("[Whisper STT] Fallback model 'base.en' loaded successfully.")
+    return _LOCAL_WHISPER_MODEL
 
 
 # ============================================
@@ -72,17 +97,6 @@ def extract_audio_pcm(file_path: str, target_sr: int = 16000) -> Tuple[Optional[
         return None, 0.0, round(time.time() - t0, 3)
 
 
-try:
-    from env_loader import load_env
-except ImportError:
-    try:
-        from backend.env_loader import load_env
-    except ImportError:
-        def load_env(override=False):
-            return {}
-
-load_env()
-
 # ============================================
 # VOCABULARY PROMPTS (KEYWORD & ENTITY TUNING)
 # ============================================
@@ -91,8 +105,6 @@ def is_usable_candidate_name(name: Optional[str]) -> bool:
     """
     Validates whether candidate_name represents a realistic full name rather than
     a short username, system nickname, or generic placeholder (e.g., 'Nani', 'User', 'Admin', '12').
-    Biasing Faster-Whisper with a short handle causes speech decoding to misrecognize or hallucinate
-    the candidate's actual spoken name.
     """
     if not name or not isinstance(name, str):
         return False
@@ -110,9 +122,8 @@ def is_usable_candidate_name(name: Optional[str]) -> bool:
 
 def get_initial_prompt(role: Optional[str] = None, candidate_name: Optional[str] = None) -> str:
     """
-    Returns natural, contextual prompt text for Faster-Whisper based on interview role and candidate.
-    Forms a coherent grammatical sentence that biases technical terms, acronyms, and proper nouns
-    (such as 'B.Tech', 'P.P. Savani University', role keywords) without triggering hallucination loops.
+    Returns natural, contextual prompt text for Faster-Whisper / Groq based on interview role and candidate.
+    Forms a coherent grammatical sentence that biases technical terms, acronyms, and proper nouns.
     """
     if is_usable_candidate_name(candidate_name):
         candidate_subject = f"Candidate {candidate_name.strip()}"
@@ -122,7 +133,6 @@ def get_initial_prompt(role: Optional[str] = None, candidate_name: Optional[str]
     role_str = (role or "Software Developer").strip()
     role_lower = role_str.lower()
 
-    # Common portfolio project terms frequently mentioned in candidate introductions
     project_context = "academic projects including drowsiness detection, face digitisation, and multimodal AI interview evaluation"
 
     if "data" in role_lower:
@@ -141,18 +151,120 @@ def get_initial_prompt(role: Optional[str] = None, candidate_name: Optional[str]
         f"{project_context}, strengths, and technical concepts including {domain_skills}."
     )
 
+
 INTERVIEW_INITIAL_PROMPT = get_initial_prompt()
 
 
 # ============================================
-# TRANSCRIBE RECORDING
+# GROQ CLOUD SPEECH RECOGNITION (LIGHTNING FAST)
+# ============================================
+
+def transcribe_with_groq(file_path: str, prompt: str = "") -> Optional[Dict[str, Any]]:
+    """
+    Transcribes audio using Groq Cloud's ultra-fast Whisper LPU API.
+    Uses whisper-large-v3-turbo or whisper-large-v3.
+    Returns structured result dict or None on failure (triggering local fallback).
+    """
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+    if not api_key:
+        return None
+
+    model_name = os.getenv("GROQ_WHISPER_MODEL", "whisper-large-v3-turbo").strip()
+    t0 = time.time()
+    base_name = os.path.basename(file_path)
+
+    print(f"[Groq STT] Submitting {base_name} to Groq API ({model_name})...")
+
+    try:
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+
+        content_type = "audio/webm" if base_name.endswith(".webm") else "application/octet-stream"
+        files = {
+            "file": (base_name, file_bytes, content_type)
+        }
+        data = {
+            "model": model_name,
+            "response_format": "verbose_json",
+            "temperature": "0.0"
+        }
+        if prompt:
+            data["prompt"] = prompt
+
+        headers = {
+            "Authorization": f"Bearer {api_key}"
+        }
+
+        with httpx.Client(timeout=45.0) as client:
+            resp = client.post(
+                "https://api.groq.com/openai/v1/audio/transcriptions",
+                files=files,
+                data=data,
+                headers=headers
+            )
+
+        if resp.status_code != 200:
+            print(f"[Groq STT Warning] Groq API returned status {resp.status_code}: {resp.text[:200]}")
+            return None
+
+        result = resp.json()
+        trans_duration = round(time.time() - t0, 2)
+        transcript = result.get("text", "").strip()
+
+        detailed_segments = []
+        raw_segments = result.get("segments", [])
+        for seg in raw_segments:
+            seg_text = seg.get("text", "").strip()
+            if seg_text:
+                seg_dict = {
+                    "start": round(float(seg.get("start", 0)), 3),
+                    "end": round(float(seg.get("end", 0)), 3),
+                    "text": seg_text,
+                    "words": []
+                }
+                raw_words = seg.get("words", [])
+                if raw_words:
+                    for w in raw_words:
+                        w_text = w.get("word", "").strip()
+                        if w_text:
+                            seg_dict["words"].append({
+                                "start": round(float(w.get("start", 0)), 3),
+                                "end": round(float(w.get("end", 0)), 3),
+                                "word": w_text,
+                                "probability": round(float(w.get("probability", 1.0)), 3)
+                            })
+                detailed_segments.append(seg_dict)
+
+        audio_duration = round(float(result.get("duration", 0.0)), 2)
+        detected_lang = result.get("language", "en")
+
+        print(f"[Groq STT] Completed in {trans_duration}s! Extracted {len(detailed_segments)} speech segments. Language: {detected_lang}")
+        print(f"[Groq STT] Preview: {transcript[:120]}...\n" if len(transcript) > 120 else f"[Groq STT] Transcript: {transcript}\n")
+
+        return {
+            "success": True,
+            "text": transcript,
+            "language": detected_lang,
+            "segments": detailed_segments,
+            "audio_duration": audio_duration,
+            "transcription_duration": trans_duration,
+            "model": f"groq-{model_name}"
+        }
+
+    except Exception as exc:
+        print(f"[Groq STT Warning] Groq API request exception: {exc}. Falling back to local Whisper...")
+        return None
+
+
+# ============================================
+# UNIFIED TRANSCRIBE RECORDING
 # ============================================
 
 def transcribe_recording(file_path: str, role: Optional[str] = None, candidate_name: Optional[str] = None) -> Dict[str, Any]:
     """
     Transcribes an audio/video recording once and returns the full transcript
     along with precise segment timestamps for question-wise mapping.
-    Uses in-process PyAV audio extraction and natural sentence vocabulary prompting to maximize domain accuracy.
+    Tries Groq Cloud API first if configured; falls back automatically to local Faster-Whisper.
     """
     if not os.path.exists(file_path):
         return {
@@ -167,30 +279,29 @@ def transcribe_recording(file_path: str, role: Optional[str] = None, candidate_n
     file_size_kb = round(file_size_bytes / 1024.0, 1)
     base_name = os.path.basename(file_path)
 
-    print(f"\n[Whisper STT] Processing recording: {base_name} ({file_size_kb} KB)")
-    print(f"[Whisper STT] Model: {ACTIVE_MODEL_NAME} | Role: {role or 'General'} | Candidate: {candidate_name or 'Unspecified'}")
+    prompt = get_initial_prompt(role=role, candidate_name=candidate_name)
+
+    # 1. Try Groq Cloud STT if API key is provided
+    if os.getenv("GROQ_API_KEY", "").strip():
+        groq_result = transcribe_with_groq(file_path, prompt=prompt)
+        if groq_result and groq_result.get("success"):
+            return groq_result
+
+    # 2. Local Faster-Whisper Fallback
+    print(f"\n[Whisper STT] Running local Faster-Whisper for {base_name} ({file_size_kb} KB)")
+    local_model = get_local_whisper_model()
 
     try:
-        # Step 1: Extract 16kHz mono float32 PCM audio via PyAV
         audio_pcm, audio_duration, extract_dur = extract_audio_pcm(file_path, target_sr=16000)
-
-        # Audio source: pass numpy float32 PCM array directly, or fallback to file_path
         audio_input = audio_pcm if (audio_pcm is not None and len(audio_pcm) > 0) else file_path
 
-        # Step 2: Configure language handling appropriately
         if ACTIVE_MODEL_NAME.endswith(".en"):
             transcribe_lang = "en"
         else:
             transcribe_lang = None if DEFAULT_LANGUAGE.lower() in ("auto", "none", "") else DEFAULT_LANGUAGE
 
-        prompt = get_initial_prompt(role=role, candidate_name=candidate_name)
-
         t_trans_start = time.time()
-        # Clean Faster-Whisper decoding with:
-        # 1. temperature=0.0: Prevents expensive multi-pass temperature fallback loops on CPU.
-        # 2. repetition_penalty=1.1: Penalizes token loops (e.g. repeated sentence fragments).
-        # 3. no_repeat_ngram_size=3: Directly prevents identical 3-gram runaway loops while preserving natural speech.
-        segments_generator, info = model.transcribe(
+        segments_generator, info = local_model.transcribe(
             audio_input,
             language=transcribe_lang,
             initial_prompt=prompt,
@@ -238,13 +349,8 @@ def transcribe_recording(file_path: str, role: Optional[str] = None, candidate_n
         t_trans_end = time.time()
         trans_duration = round(t_trans_end - t_trans_start, 2)
         transcript = " ".join(transcript_parts).strip()
-        word_count = sum(len(s.get("words", [])) for s in detailed_segments)
 
-        # Step 3: Diagnostic logs (no credentials or tokens logged)
-        print(f"[Whisper STT] Audio extracted duration: {audio_duration:.2f}s (extraction took {extract_dur:.3f}s)")
-        print(f"[Whisper STT] Transcription duration: {trans_duration:.2f}s | Detected language: {info.language}")
-        print(f"[Whisper STT] Extracted {len(detailed_segments)} speech segments ({word_count} words).")
-        print(f"[Whisper STT] Preview: {transcript[:120]}...\n" if len(transcript) > 120 else f"[Whisper STT] Transcript: {transcript}\n")
+        print(f"[Whisper STT] Local STT completed in {trans_duration}s. Segments: {len(detailed_segments)}")
 
         return {
             "success": True,
