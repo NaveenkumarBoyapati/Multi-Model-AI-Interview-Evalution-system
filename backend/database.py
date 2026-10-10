@@ -107,12 +107,14 @@ def translate_sql(sql: str) -> str:
 
 def translate_sql_postgres(sql: str) -> str:
     """
-    Translates SQL Server dialect to PostgreSQL dialect:
+    Translates SQL Server / T-SQL dialect to PostgreSQL dialect:
       - OUTPUT INSERTED.[id] -> RETURNING id
       - SELECT TOP n -> SELECT ... LIMIT n
       - ? -> %s
       - GETDATE(), SYSDATETIME(), GETUTCDATE() -> NOW()
+      - DATEADD(unit, amount, expr) -> (expr + INTERVAL 'amount unit')
       - WITH (NOLOCK) -> removed
+      - WITH VALUES -> removed
       - ISNULL(a, b) -> COALESCE(a, b)
       - Square brackets [Table].[Column] -> removed
     """
@@ -124,6 +126,32 @@ def translate_sql_postgres(sql: str) -> str:
     # Replace date built-ins
     cleaned = re.sub(r"\b(GETDATE|SYSDATETIME|GETUTCDATE|SYSUTCDATETIME)\s*\(\s*\)", "NOW()", cleaned, flags=re.IGNORECASE)
     
+    # Translate DATEADD to standard PostgreSQL interval arithmetic
+    def _repl_dateadd(m):
+        unit = m.group(1).lower().strip('\'"')
+        amount = m.group(2)
+        base = m.group(3).strip()
+        unit_map = {
+            'mi': 'minute', 'minutes': 'minute',
+            'hh': 'hour', 'hours': 'hour',
+            'd': 'day', 'days': 'day',
+            'ss': 'second', 'seconds': 'second',
+            'm': 'month', 'months': 'month',
+            'yy': 'year', 'yyyy': 'year', 'years': 'year'
+        }
+        unit = unit_map.get(unit, unit)
+        return f"({base} + INTERVAL '{amount} {unit}')"
+
+    cleaned = re.sub(
+        r"\bDATEADD\s*\(\s*['\"]?([a-zA-Z]+)['\"]?\s*,\s*(-?\d+)\s*,\s*([a-zA-Z0-9_.]+(?:\(\s*\))?)\s*\)",
+        _repl_dateadd,
+        cleaned,
+        flags=re.IGNORECASE
+    )
+
+    # Strip T-SQL WITH VALUES clause from column additions
+    cleaned = re.sub(r"\bWITH\s+VALUES\b", "", cleaned, flags=re.IGNORECASE)
+
     # Replace ISNULL with COALESCE
     cleaned = re.sub(r"\bISNULL\s*\(", "COALESCE(", cleaned, flags=re.IGNORECASE)
     

@@ -401,15 +401,30 @@ def startup_auth_init():
         try:
             mig_conn = get_connection()
             mig_cur = mig_conn.cursor()
-            mig_cur.execute("""
-                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'termination_type')
-                    ALTER TABLE Interviews ADD termination_type NVARCHAR(50) NULL;
-                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'security_violation')
-                    ALTER TABLE Interviews ADD security_violation BIT NULL;
-                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'terminated_at')
-                    ALTER TABLE Interviews ADD terminated_at DATETIME2 NULL;
-            """)
-            mig_conn.commit()
+            from database import DB_ENGINE
+            is_pg = (DB_ENGINE in ("postgres", "postgresql", "neon") or bool(os.getenv("DATABASE_URL") and DB_ENGINE != "sqlite"))
+            if is_pg:
+                mig_cur.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS termination_type VARCHAR(50) NULL")
+                mig_cur.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS security_violation INT NULL")
+                mig_cur.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS terminated_at TIMESTAMP NULL")
+                mig_conn.commit()
+            elif DB_ENGINE == "sqlite":
+                for col, typ in [("termination_type", "TEXT"), ("security_violation", "INTEGER"), ("terminated_at", "TEXT")]:
+                    try:
+                        mig_cur.execute(f"ALTER TABLE Interviews ADD COLUMN {col} {typ} NULL")
+                        mig_conn.commit()
+                    except Exception:
+                        pass
+            else:
+                mig_cur.execute("""
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'termination_type')
+                        ALTER TABLE Interviews ADD termination_type NVARCHAR(50) NULL;
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'security_violation')
+                        ALTER TABLE Interviews ADD security_violation BIT NULL;
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'terminated_at')
+                        ALTER TABLE Interviews ADD terminated_at DATETIME2 NULL;
+                """)
+                mig_conn.commit()
             mig_cur.close()
             mig_conn.close()
         except Exception as mig_err:
@@ -476,14 +491,17 @@ def get_user_from_auth(
         token_id = row[7]
         expires_at = row[5]
 
-        # Check expiration against current UTC
-        if expires_at and expires_at < datetime.utcnow():
-            cursor.execute("UPDATE UserTokens SET is_active = 0 WHERE id = ?", (token_id,))
-            connection.commit()
-            raise HTTPException(
-                status_code=401,
-                detail="Your session has expired. Please log in again."
-            )
+        # Check expiration against current UTC (handles both aware and naive timestamps)
+        if expires_at:
+            from datetime import timezone
+            now_utc = datetime.now(timezone.utc) if getattr(expires_at, "tzinfo", None) is not None else datetime.utcnow()
+            if expires_at < now_utc:
+                cursor.execute("UPDATE UserTokens SET is_active = 0 WHERE id = ?", (token_id,))
+                connection.commit()
+                raise HTTPException(
+                    status_code=401,
+                    detail="Your session has expired. Please log in again."
+                )
 
         created_dt = row[8]
         member_since_str = created_dt.strftime("%d %b %Y") if created_dt else "Recent"
@@ -594,6 +612,14 @@ def register(req: RegisterRequest):
                 "preferred_role": pref_role
             }
         }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[Auth Error] Registration failed for email '{clean_email}': {type(exc).__name__}: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred during registration. Please try again."
+        )
     finally:
         cursor.close()
         connection.close()
@@ -631,6 +657,20 @@ def login(req: LoginRequest):
         is_admin = bool(row[4])
         pref_role = row[5]
 
+        # Check account active status if column exists
+        try:
+            cursor.execute("SELECT is_active FROM Users WHERE id = ?", (user_id,))
+            act_row = cursor.fetchone()
+            if act_row and act_row[0] is not None and int(act_row[0]) == 0:
+                raise HTTPException(
+                    status_code=403,
+                    detail="Your account has been deactivated. Please contact the administrator."
+                )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
         # Role enforcement if requested as Admin
         if req.role and req.role.strip().lower() == "admin" and not is_admin:
             raise HTTPException(
@@ -659,6 +699,14 @@ def login(req: LoginRequest):
                 "preferred_role": pref_role
             }
         }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[Auth Error] Login failed for email '{clean_email}': {type(exc).__name__}: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail="An unexpected error occurred during authentication. Please try again."
+        )
     finally:
         cursor.close()
         connection.close()

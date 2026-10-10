@@ -1,8 +1,22 @@
 // =========================================
 // AI Interview Evaluation System - Auth Logic
 // =========================================
-const API_BASE_URL =
-  "https://multi-model-ai-interview-evalution-system.onrender.com";
+// Dynamic Base URL configuration:
+// When deployed on Vercel or running on the same origin (Render), using "" routes
+// through the Vercel proxy or the host domain directly.
+// If accessed directly from an external unproxied origin or local file preview, falls back to the active Render backend.
+const API_BASE_URL = (function() {
+    if (typeof window !== "undefined" && window.API_BASE_URL !== undefined) {
+        return window.API_BASE_URL;
+    }
+    if (typeof window !== "undefined" && window.location) {
+        const host = window.location.hostname;
+        if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".vercel.app") || host.endsWith(".onrender.com")) {
+            return "";
+        }
+    }
+    return "https://ai-interview-backend-new-2ccj.onrender.com";
+})();
 
 const images = [
     "images/slide1.png",

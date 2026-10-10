@@ -181,6 +181,49 @@ CREATE TABLE IF NOT EXISTS AdminAuditLogs (
     details TEXT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- PostgreSQL DATEADD compatibility functions (for SQL Server query compatibility)
+CREATE OR REPLACE FUNCTION DATEADD(unit text, amount integer, base_date timestamp with time zone)
+RETURNS timestamp with time zone AS $$
+BEGIN
+    IF lower(unit) IN ('day', 'days', 'd') THEN
+        RETURN base_date + (amount || ' days')::interval;
+    ELSIF lower(unit) IN ('hour', 'hours', 'hh') THEN
+        RETURN base_date + (amount || ' hours')::interval;
+    ELSIF lower(unit) IN ('minute', 'minutes', 'mi') THEN
+        RETURN base_date + (amount || ' minutes')::interval;
+    ELSIF lower(unit) IN ('second', 'seconds', 'ss') THEN
+        RETURN base_date + (amount || ' seconds')::interval;
+    ELSIF lower(unit) IN ('month', 'months', 'm') THEN
+        RETURN base_date + (amount || ' months')::interval;
+    ELSIF lower(unit) IN ('year', 'years', 'yy', 'yyyy') THEN
+        RETURN base_date + (amount || ' years')::interval;
+    ELSE
+        RETURN base_date + (amount || ' days')::interval;
+    END IF;
+END;
+$$ LANGUAGE plpgsql STABLE;
+
+CREATE OR REPLACE FUNCTION DATEADD(unit text, amount integer, base_date timestamp without time zone)
+RETURNS timestamp without time zone AS $$
+BEGIN
+    IF lower(unit) IN ('day', 'days', 'd') THEN
+        RETURN (base_date + (amount || ' days')::interval)::timestamp;
+    ELSIF lower(unit) IN ('hour', 'hours', 'hh') THEN
+        RETURN (base_date + (amount || ' hours')::interval)::timestamp;
+    ELSIF lower(unit) IN ('minute', 'minutes', 'mi') THEN
+        RETURN (base_date + (amount || ' minutes')::interval)::timestamp;
+    ELSIF lower(unit) IN ('second', 'seconds', 'ss') THEN
+        RETURN (base_date + (amount || ' seconds')::interval)::timestamp;
+    ELSIF lower(unit) IN ('month', 'months', 'm') THEN
+        RETURN (base_date + (amount || ' months')::interval)::timestamp;
+    ELSIF lower(unit) IN ('year', 'years', 'yy', 'yyyy') THEN
+        RETURN (base_date + (amount || ' years')::interval)::timestamp;
+    ELSE
+        RETURN (base_date + (amount || ' days')::interval)::timestamp;
+    END IF;
+END;
+$$ LANGUAGE plpgsql STABLE;
 """
 
 DEFAULT_ROLES = [

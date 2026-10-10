@@ -32,26 +32,73 @@ def init_admin_schema():
     conn = get_connection()
     cur = conn.cursor()
     try:
-        # 1. Users.is_active
-        cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Users' AND COLUMN_NAME = 'is_active'")
-        if not cur.fetchone():
-            cur.execute("ALTER TABLE Users ADD is_active BIT NOT NULL DEFAULT 1 WITH VALUES")
+        from database import DB_ENGINE
+        is_pg = (DB_ENGINE in ("postgres", "postgresql", "neon") or bool(os.getenv("DATABASE_URL") and DB_ENGINE != "sqlite"))
+
+        if is_pg:
+            # PostgreSQL / Neon dialect (native ADD COLUMN IF NOT EXISTS)
+            cur.execute("ALTER TABLE Users ADD COLUMN IF NOT EXISTS is_active INT NOT NULL DEFAULT 1")
+            cur.execute("ALTER TABLE Questions ADD COLUMN IF NOT EXISTS is_active INT NOT NULL DEFAULT 1")
+            cur.execute("ALTER TABLE Roles ADD COLUMN IF NOT EXISTS is_active INT NOT NULL DEFAULT 1")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS AdminAuditLogs (
+                    id SERIAL PRIMARY KEY,
+                    admin_id INT NULL,
+                    admin_name VARCHAR(255) NULL,
+                    admin_email VARCHAR(255) NULL,
+                    action VARCHAR(100) NOT NULL,
+                    target_type VARCHAR(100) NULL,
+                    target_id VARCHAR(100) NULL,
+                    result VARCHAR(50) NOT NULL DEFAULT 'SUCCESS',
+                    details TEXT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+                )
+            """)
             conn.commit()
+            return
+
+        # SQLite or Microsoft SQL Server
+        # 1. Users.is_active
+        cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = 'users' AND LOWER(COLUMN_NAME) = 'is_active'")
+        if not cur.fetchone():
+            if DB_ENGINE == "sqlite":
+                try:
+                    cur.execute("ALTER TABLE Users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
+                    conn.commit()
+                except Exception:
+                    pass
+            else:
+                cur.execute("ALTER TABLE Users ADD is_active BIT NOT NULL DEFAULT 1 WITH VALUES")
+                conn.commit()
 
         # 2. Questions.is_active
-        cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Questions' AND COLUMN_NAME = 'is_active'")
+        cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = 'questions' AND LOWER(COLUMN_NAME) = 'is_active'")
         if not cur.fetchone():
-            cur.execute("ALTER TABLE Questions ADD is_active BIT NOT NULL DEFAULT 1 WITH VALUES")
-            conn.commit()
+            if DB_ENGINE == "sqlite":
+                try:
+                    cur.execute("ALTER TABLE Questions ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
+                    conn.commit()
+                except Exception:
+                    pass
+            else:
+                cur.execute("ALTER TABLE Questions ADD is_active BIT NOT NULL DEFAULT 1 WITH VALUES")
+                conn.commit()
 
         # 3. Roles.is_active
-        cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Roles' AND COLUMN_NAME = 'is_active'")
+        cur.execute("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = 'roles' AND LOWER(COLUMN_NAME) = 'is_active'")
         if not cur.fetchone():
-            cur.execute("ALTER TABLE Roles ADD is_active BIT NOT NULL DEFAULT 1 WITH VALUES")
-            conn.commit()
+            if DB_ENGINE == "sqlite":
+                try:
+                    cur.execute("ALTER TABLE Roles ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1")
+                    conn.commit()
+                except Exception:
+                    pass
+            else:
+                cur.execute("ALTER TABLE Roles ADD is_active BIT NOT NULL DEFAULT 1 WITH VALUES")
+                conn.commit()
 
         # 4. AdminAuditLogs
-        cur.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'AdminAuditLogs'")
+        cur.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE LOWER(TABLE_NAME) = 'adminauditlogs'")
         if not cur.fetchone():
             cur.execute("""
                 CREATE TABLE AdminAuditLogs (
@@ -68,6 +115,8 @@ def init_admin_schema():
                 )
             """)
             conn.commit()
+    except Exception as exc:
+        print(f"[Admin Schema Notice] Schema extension check notice: {exc}")
     finally:
         cur.close()
         conn.close()

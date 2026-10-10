@@ -7,19 +7,19 @@
     },
     {
       "source": "/api/:path*",
-      "destination": "https://YOUR-BACKEND.onrender.com/api/:path*"
+      "destination": "https://ai-interview-backend-new-2ccj.onrender.com/api/:path*"
     },
     {
       "source": "/interview/:path*",
-      "destination": "https://YOUR-BACKEND.onrender.com/interview/:path*"
+      "destination": "https://ai-interview-backend-new-2ccj.onrender.com/interview/:path*"
     },
     {
       "source": "/uploads/:path*",
-      "destination": "https://YOUR-BACKEND.onrender.com/uploads/:path*"
+      "destination": "https://ai-interview-backend-new-2ccj.onrender.com/uploads/:path*"
     },
     {
       "source": "/health",
-      "destination": "https://YOUR-BACKEND.onrender.com/health"
+      "destination": "https://ai-interview-backend-new-2ccj.onrender.com/health"
     }
   ]
 }
