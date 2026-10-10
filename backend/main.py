@@ -364,8 +364,7 @@ class ProfileUpdateRequest(BaseModel):
 # STARTUP EVENT: SEED ADMIN & VERIFY TABLES
 # =========================================
 
-@app.on_event("startup")
-def startup_auth_init():
+def _run_background_startup_auth():
     """Seeds default admin if none exists and ensures tables/indexes are ready."""
     try:
         connection = get_connection()
@@ -394,29 +393,24 @@ def startup_auth_init():
             connection.commit()
             print("[Startup Auth] Seeded default administrator account: admin@ai-interview.com")
 
-        cursor.close()
-        connection.close()
-
         # Ensure Interviews table has columns for strict tab switch termination policy
         try:
-            mig_conn = get_connection()
-            mig_cur = mig_conn.cursor()
             from database import DB_ENGINE
             is_pg = (DB_ENGINE in ("postgres", "postgresql", "neon") or bool(os.getenv("DATABASE_URL") and DB_ENGINE != "sqlite"))
             if is_pg:
-                mig_cur.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS termination_type VARCHAR(50) NULL")
-                mig_cur.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS security_violation INT NULL")
-                mig_cur.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS terminated_at TIMESTAMP NULL")
-                mig_conn.commit()
+                cursor.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS termination_type VARCHAR(50) NULL")
+                cursor.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS security_violation INT NULL")
+                cursor.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS terminated_at TIMESTAMP NULL")
+                connection.commit()
             elif DB_ENGINE == "sqlite":
                 for col, typ in [("termination_type", "TEXT"), ("security_violation", "INTEGER"), ("terminated_at", "TEXT")]:
                     try:
-                        mig_cur.execute(f"ALTER TABLE Interviews ADD COLUMN {col} {typ} NULL")
-                        mig_conn.commit()
+                        cursor.execute(f"ALTER TABLE Interviews ADD COLUMN {col} {typ} NULL")
+                        connection.commit()
                     except Exception:
                         pass
             else:
-                mig_cur.execute("""
+                cursor.execute("""
                     IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'termination_type')
                         ALTER TABLE Interviews ADD termination_type NVARCHAR(50) NULL;
                     IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'security_violation')
@@ -424,11 +418,12 @@ def startup_auth_init():
                     IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'terminated_at')
                         ALTER TABLE Interviews ADD terminated_at DATETIME2 NULL;
                 """)
-                mig_conn.commit()
-            mig_cur.close()
-            mig_conn.close()
+                connection.commit()
         except Exception as mig_err:
             print(f"[Startup Migration Notice] {mig_err}")
+        finally:
+            cursor.close()
+            connection.close()
 
         # Safe SMTP Configuration Diagnostic
         try:
@@ -443,6 +438,16 @@ def startup_auth_init():
             print(f"[Admin Schema Warning] {schema_err}")
     except Exception as exc:
         print(f"[Startup Auth Warning] {exc}")
+
+
+@app.on_event("startup")
+def startup_auth_init():
+    """
+    Non-blocking startup initialization. Launches background verification thread so
+    Uvicorn binds to 0.0.0.0:$PORT immediately, preventing cloud port scan timeouts.
+    """
+    import threading
+    threading.Thread(target=_run_background_startup_auth, daemon=True, name="StartupAuthThread").start()
 
 
 # =========================================

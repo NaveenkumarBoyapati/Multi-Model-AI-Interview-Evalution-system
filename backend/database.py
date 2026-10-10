@@ -328,20 +328,25 @@ class PostgresConnectionWrapper:
     def close(self):
         self._conn.close()
 
+import threading
+
 _POSTGRES_INITIALIZED = False
+_POSTGRES_INIT_LOCK = threading.Lock()
 
 def get_postgres_connection():
     global _POSTGRES_INITIALIZED
     import psycopg2
     
     if not _POSTGRES_INITIALIZED and DATABASE_URL:
-        try:
-            from postgres_init import init_postgres_db
-            init_postgres_db(DATABASE_URL)
-            _POSTGRES_INITIALIZED = True
-        except Exception as init_err:
-            print(f"[Postgres Init Warning] {init_err}")
-            _POSTGRES_INITIALIZED = True
+        with _POSTGRES_INIT_LOCK:
+            if not _POSTGRES_INITIALIZED:
+                try:
+                    from postgres_init import init_postgres_db
+                    init_postgres_db(DATABASE_URL)
+                except Exception as init_err:
+                    print(f"[Postgres Init Warning] {init_err}")
+                finally:
+                    _POSTGRES_INITIALIZED = True
 
     raw_conn = psycopg2.connect(DATABASE_URL)
     return PostgresConnectionWrapper(raw_conn)

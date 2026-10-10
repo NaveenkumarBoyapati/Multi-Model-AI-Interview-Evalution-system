@@ -34,14 +34,14 @@ COPY . .
 # Ensure upload directory exists with full permissions for any user (Hugging Face non-root UID 1000)
 RUN mkdir -p /app/backend/uploads && chmod -R 777 /app/backend/uploads
 
-# Default port 7860, dynamically configurable via PORT env var (Render injects PORT=10000)
-ENV PORT=7860
+# Production port configuration (Render default is 10000, dynamically configurable via PORT env var)
+ENV PORT=10000
 ENV DB_ENGINE=sqlite
 ENV WHISPER_MODEL_SIZE=tiny.en
-EXPOSE 7860 8000
+EXPOSE 10000
 
 # Set working directory to backend where main.py resides
 WORKDIR /app/backend
 
-# Initialize SQLite database and run FastAPI backend on dynamic port
-CMD ["sh", "-c", "python sqlite_init.py && uvicorn main:app --host 0.0.0.0 --port ${PORT:-7860}"]
+# Run FastAPI backend with Uvicorn bound to 0.0.0.0 and dynamic PORT (Render injects PORT=10000)
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-10000}"]
