@@ -1,6 +1,8 @@
 // =========================================
 // AI Interview Evaluation System - Auth Logic
 // =========================================
+const API_BASE_URL =
+  "https://multi-model-ai-interview-evalution-system.onrender.com";
 
 const images = [
     "images/slide1.png",
@@ -31,6 +33,12 @@ const slide = document.getElementById("slide");
 const title = document.getElementById("title");
 const subtitle = document.getElementById("subtitle");
 
+// Preload all slides in background so they are cached and load instantly
+images.forEach(src => {
+    const preloadedImg = new Image();
+    preloadedImg.src = src;
+});
+
 if (slide && title && subtitle) {
     setInterval(() => {
         current = (current + 1) % images.length;
@@ -41,7 +49,7 @@ if (slide && title && subtitle) {
             if (subtitle) subtitle.innerHTML = subtitles[current];
             if (slide) slide.style.opacity = "1";
         }, 500);
-    }, 3500);
+    }, 4500);
 }
 
 // =========================================
@@ -213,7 +221,7 @@ async function handleLogin(e) {
             loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
         }
 
-        const response = await fetch("/api/auth/login", {
+        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ email: email, password: password, role: role })
@@ -363,7 +371,7 @@ async function handleRegister(e) {
             regBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
         }
 
-        const response = await fetch("/api/auth/register", {
+        const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
