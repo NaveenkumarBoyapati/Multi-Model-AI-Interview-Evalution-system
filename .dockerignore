@@ -1,0 +1,23 @@
+# Version control
+.git
+.gitignore
+
+# Python cache and environments
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+
+# Large local utilities and executables (not needed in Linux container)
+cloudflared.exe
+*.bat
+*.cmd
+
+# Local test scripts & artifacts
+test_*.js
+test_*.py
+backend/test_*.py
+chrome_e2e_results.json
+SQLQuery1.sql
+AI_Interview_Report_*.pdf
+scratch/

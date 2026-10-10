@@ -34,9 +34,10 @@ COPY . .
 # Ensure upload directory exists with full permissions for any user (Hugging Face non-root UID 1000)
 RUN mkdir -p /app/backend/uploads && chmod -R 777 /app/backend/uploads
 
-# Default port 7860 for Hugging Face Spaces, dynamically configurable via PORT env var
+# Default port 7860, dynamically configurable via PORT env var (Render injects PORT=10000)
 ENV PORT=7860
 ENV DB_ENGINE=sqlite
+ENV WHISPER_MODEL_SIZE=tiny.en
 EXPOSE 7860 8000
 
 # Set working directory to backend where main.py resides

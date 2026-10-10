@@ -44,3 +44,8 @@ desktop.ini
 # Testing / Logs
 *.log
 chrome_e2e_results.json
+
+# Cloudflare Tunnel Binary
+cloudflared.exe
+images/original_backup/
+scratch/

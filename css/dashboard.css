@@ -513,136 +513,281 @@ table tbody tr:hover{
 
 }
 
+/* Sidebar Overlay */
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(2px);
+    z-index: 1040;
+}
+
+.sidebar-overlay.active {
+    display: block;
+}
+
+/* Sidebar Toggle for Desktop */
+.sidebar {
+    transition: 0.3s ease;
+}
+
+.main-content {
+    transition: 0.3s ease;
+}
+
+.sidebar.collapsed {
+    width: 80px;
+}
+
+.sidebar.collapsed .logo h2,
+.sidebar.collapsed ul li span {
+    display: none;
+}
+
+.sidebar.collapsed ul li {
+    justify-content: center;
+}
+
+.main-content.expanded {
+    margin-left: 80px;
+}
+
 /* ===========================
-   Responsive - Mobile
+   Responsive - Mobile (<= 768px)
 =========================== */
 
 @media(max-width:768px){
 
-    .sidebar{
-        width:80px;
-        padding:25px 10px;
+    .sidebar {
+        width: 270px !important;
+        padding: 30px 20px;
+        position: fixed;
+        left: -290px;
+        top: 0;
+        bottom: 0;
+        z-index: 1050;
+        transition: left 0.3s ease;
+        box-shadow: none;
+    }
+
+    .sidebar.mobile-open {
+        left: 0;
+        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.45);
     }
 
     .sidebar .logo h2,
-    .sidebar ul li span{
-        display:none;
+    .sidebar ul li span,
+    .sidebar.mobile-open .logo h2,
+    .sidebar.mobile-open ul li span {
+        display: inline-block !important;
     }
 
-    .sidebar ul li{
-        justify-content:center;
+    .sidebar ul li {
+        justify-content: flex-start !important;
     }
 
-    .main-content{
-        margin-left:80px;
-        padding:20px;
+    .main-content {
+        margin-left: 0 !important;
+        padding: 18px 14px;
+        width: 100%;
+        max-width: 100vw;
+        min-width: 0;
+        overflow-x: hidden;
     }
 
-    .navbar{
-        flex-direction:column;
-        align-items:flex-start;
-        gap:20px;
+    .navbar {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 16px;
+        margin-bottom: 24px;
     }
 
-    .right-nav{
-        width:100%;
-        justify-content:space-between;
+    .left-nav {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 14px;
     }
 
-    .search-box{
-        flex:1;
+    .left-nav h1 {
+        font-size: 20px;
+        line-height: 1.2;
     }
 
-    .search-box input{
-        width:100%;
+    .left-nav p {
+        font-size: 12px;
+        color: #64748b;
     }
 
-    .stats{
-        grid-template-columns:1fr;
+    .right-nav {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 10px;
     }
 
-    .hero{
-        padding:30px;
+    .search-box {
+        flex: 1;
+        min-width: 0;
+        padding: 10px 14px;
     }
 
-    .hero-content h2{
-        font-size:28px;
+    .search-box input {
+        width: 100%;
+        font-size: 13.5px;
     }
 
-    .hero-image{
-        display:none;
+    .stats {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 12px;
     }
 
-    table{
-        display:block;
-        overflow-x:auto;
+    .stats-5 {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 12px;
     }
 
-    .progress-details{
-        flex-direction:column;
-        gap:20px;
+    .stat-card {
+        padding: 16px 14px;
+        gap: 12px;
+        border-radius: 14px;
+    }
+
+    .icon {
+        width: 46px;
+        height: 46px;
+        border-radius: 12px;
+        font-size: 20px;
+    }
+
+    .stat-card h4 {
+        font-size: 11.5px;
+        margin-bottom: 3px;
+    }
+
+    .stat-card h2 {
+        font-size: 20px;
+    }
+
+    .hero {
+        padding: 24px 18px;
+        border-radius: 16px;
+        gap: 18px;
+    }
+
+    .hero-content h2 {
+        font-size: 24px;
+    }
+
+    .hero-content p {
+        font-size: 13.5px;
+    }
+
+    .hero-image {
+        display: none;
+    }
+
+    .start-btn {
+        width: 100%;
+        text-align: center;
+        padding: 12px;
+    }
+
+    .progress-banner {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 20px 18px;
+        gap: 16px;
+    }
+
+    .progress-banner-content h3 {
+        font-size: 16px;
+    }
+
+    .progress-banner-content p {
+        font-size: 13px;
+    }
+
+    .banner-action-btn {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .dashboard-grid-2,
+    .dashboard-grid-equal {
+        grid-template-columns: 1fr !important;
+        gap: 18px;
+    }
+
+    .chart-card,
+    .panel-card,
+    .latest-card {
+        padding: 18px 14px;
+        border-radius: 14px;
+    }
+
+    .chart-canvas-container {
+        width: 100%;
+        overflow-x: hidden;
+    }
+
+    table {
+        display: table;
+        width: 100%;
+    }
+
+    .table-responsive {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .progress-details {
+        flex-direction: column;
+        gap: 16px;
     }
 
 }
 
 /* ===========================
-   Small Mobile
+   Small Mobile (<= 480px)
 =========================== */
 
 @media(max-width:480px){
 
-    .main-content{
-        padding:15px;
+    .main-content {
+        padding: 12px 10px;
     }
 
-    .left-nav h1{
-        font-size:22px;
+    .left-nav h1 {
+        font-size: 18px;
     }
 
-    .section-title h2{
-        font-size:18px;
+    .section-title h2 {
+        font-size: 16px;
     }
 
-    .hero-content h2{
-        font-size:24px;
+    .hero-content h2 {
+        font-size: 20px;
     }
 
-    .start-btn{
-        width:100%;
+    .stats {
+        grid-template-columns: 1fr;
     }
 
-    .stat-card{
-        flex-direction:column;
-        text-align:center;
+    .stats-5 {
+        grid-template-columns: 1fr !important;
     }
 
-}
+    .stat-card {
+        flex-direction: row;
+        text-align: left;
+    }
 
-/* Sidebar Toggle */
-
-.sidebar{
-    transition:0.3s ease;
-}
-
-.main-content{
-    transition:0.3s ease;
-}
-
-.sidebar.collapsed{
-    width:80px;
-}
-
-.sidebar.collapsed .logo h2,
-.sidebar.collapsed ul li span{
-    display:none;
-}
-
-.sidebar.collapsed ul li{
-    justify-content:center;
-}
-
-.main-content.expanded{
-    margin-left:80px;
 }
 
 /* =========================================

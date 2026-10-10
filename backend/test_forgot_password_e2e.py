@@ -1,15 +1,27 @@
 """
 End-to-End Verification of Forgot Password page and API flow
+Supports both live server and in-process TestClient execution.
 """
 import urllib.request
 import json
 import re
+import os
+import sys
 
 def run_tests():
-    # 1. Fetch forgot_password.html from live server
+    # 1. Fetch forgot_password.html from live server or local file
     html_url = "http://127.0.0.1:8000/app/forgot_password.html"
-    res_html = urllib.request.urlopen(html_url)
-    html_content = res_html.read().decode("utf-8")
+    is_live = False
+    try:
+        res_html = urllib.request.urlopen(html_url, timeout=2)
+        html_content = res_html.read().decode("utf-8")
+        is_live = True
+        print("[Mode: Live Server]")
+    except Exception:
+        print("[Mode: In-Process TestClient]")
+        root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        with open(os.path.join(root_dir, "forgot_password.html"), "r", encoding="utf-8") as f:
+            html_content = f.read()
 
     print("--- HTML Initial State Checks ---")
     assert '<div id="devNoticeBox" style="display: none;"></div>' in html_content, "devNoticeBox should be hidden"
@@ -38,16 +50,23 @@ def run_tests():
 
     # 3. Live API Dispatch Check
     print("\n--- Live API Dispatch Check ---")
-    req = urllib.request.Request(
-        "http://127.0.0.1:8000/api/auth/forgot-password",
-        data=json.dumps({"email": "naveenboyapati48@gmail.com"}).encode("utf-8"),
-        headers={"Content-Type": "application/json"}
-    )
-    res = urllib.request.urlopen(req)
-    data = json.loads(res.read().decode("utf-8"))
-    print("Status Code:", res.status)
-    print("Response JSON:", data)
+    if is_live:
+        req = urllib.request.Request(
+            "http://127.0.0.1:8000/api/auth/forgot-password",
+            data=json.dumps({"email": "naveenboyapati48@gmail.com"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        res = urllib.request.urlopen(req)
+        data = json.loads(res.read().decode("utf-8"))
+    else:
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from main import app
+        from starlette.testclient import TestClient
+        client = TestClient(app)
+        res = client.post("/api/auth/forgot-password", json={"email": "naveenboyapati48@gmail.com"})
+        data = res.json()
 
+    print("Response JSON:", data)
     assert data.get("status") == "success", "status should be success"
     assert data.get("delivery_status") == "sent", "delivery_status should be 'sent'"
     assert data.get("smtp_configured") is True, "smtp_configured should be True"
@@ -57,13 +76,18 @@ def run_tests():
 
     # 4. Anti-enumeration check
     print("\n--- Anti-Enumeration Check ---")
-    req_nonexist = urllib.request.Request(
-        "http://127.0.0.1:8000/api/auth/forgot-password",
-        data=json.dumps({"email": "unknown_user_9999@example.com"}).encode("utf-8"),
-        headers={"Content-Type": "application/json"}
-    )
-    res_nonexist = urllib.request.urlopen(req_nonexist)
-    data_nonexist = json.loads(res_nonexist.read().decode("utf-8"))
+    if is_live:
+        req_nonexist = urllib.request.Request(
+            "http://127.0.0.1:8000/api/auth/forgot-password",
+            data=json.dumps({"email": "unknown_user_9999@example.com"}).encode("utf-8"),
+            headers={"Content-Type": "application/json"}
+        )
+        res_nonexist = urllib.request.urlopen(req_nonexist)
+        data_nonexist = json.loads(res_nonexist.read().decode("utf-8"))
+    else:
+        res_nonexist = client.post("/api/auth/forgot-password", json={"email": "unknown_user_9999@example.com"})
+        data_nonexist = res_nonexist.json()
+
     assert data_nonexist.get("message") == data.get("message"), "Anti-enumeration message mismatch"
     assert data_nonexist.get("delivery_status") == "sent", "Nonexistent user should return identical delivery_status"
     print("8. Anti-enumeration check passes: PASS")

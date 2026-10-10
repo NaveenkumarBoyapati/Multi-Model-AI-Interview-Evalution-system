@@ -1400,7 +1400,9 @@ async function initCameraPreview(forceVirtual = false) {
                 },
                 audio: {
                     echoCancellation: true,
-                    noiseSuppression: true
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    channelCount: 1
                 }
             });
             console.log("[Camera] Physical camera + microphone connected (Attempt 1).");
@@ -1627,24 +1629,39 @@ recordButton.addEventListener(
 
         try {
 
+            const recorderOptions = {
+                videoBitsPerSecond: 1000000, // 1.0 Mbps HD video
+                audioBitsPerSecond: 128000  // 128 kbps Opus audio (high fidelity for speech recognition)
+            };
             if (mimeType) {
+                recorderOptions.mimeType = mimeType;
+            }
 
+            try {
                 mediaRecorder =
                     new MediaRecorder(
                         interviewStream,
-                        {
-                            mimeType:
-                                mimeType
-                        }
+                        recorderOptions
                     );
-
-            } else {
-
-                mediaRecorder =
-                    new MediaRecorder(
-                        interviewStream
-                    );
-
+            } catch (optErr) {
+                console.warn(
+                    "Bitrate options not supported, falling back to standard MediaRecorder:",
+                    optErr
+                );
+                if (mimeType) {
+                    mediaRecorder =
+                        new MediaRecorder(
+                            interviewStream,
+                            {
+                                mimeType: mimeType
+                            }
+                        );
+                } else {
+                    mediaRecorder =
+                        new MediaRecorder(
+                            interviewStream
+                        );
+                }
             }
 
         } catch (error) {
@@ -2251,6 +2268,130 @@ window.addEventListener(
 
 
 // =========================================
+// SUBMISSION PROGRESS MODAL HELPERS
+// =========================================
+
+function showSubmissionModal() {
+    const modal = document.getElementById("submissionModal");
+    if (modal) {
+        modal.style.display = "flex";
+        modal.setAttribute("aria-hidden", "false");
+    }
+}
+
+function hideSubmissionModal() {
+    const modal = document.getElementById("submissionModal");
+    if (modal) {
+        modal.style.display = "none";
+        modal.setAttribute("aria-hidden", "true");
+    }
+}
+
+function updateSubmissionStep(stepNumber, state, statusMsg, percentVal) {
+    for (let i = 1; i <= 5; i++) {
+        const stepEl = document.getElementById(`subStep${i}`);
+        if (!stepEl) continue;
+        const indicator = stepEl.querySelector(".step-indicator");
+
+        if (i < stepNumber) {
+            stepEl.className = "submission-step completed";
+            if (indicator) indicator.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+        } else if (i === stepNumber) {
+            if (state === "error") {
+                stepEl.className = "submission-step error";
+                if (indicator) indicator.innerHTML = '<i class="fa-solid fa-circle-exclamation"></i>';
+            } else if (state === "completed") {
+                stepEl.className = "submission-step completed";
+                if (indicator) indicator.innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+            } else {
+                stepEl.className = "submission-step active";
+                if (indicator) indicator.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+            }
+        } else {
+            stepEl.className = "submission-step";
+            if (indicator) indicator.innerHTML = '<i class="fa-regular fa-circle"></i>';
+        }
+    }
+
+    if (statusMsg) {
+        const statusEl = document.getElementById("submissionStatusText");
+        if (statusEl) statusEl.textContent = statusMsg;
+    }
+
+    if (typeof percentVal === "number") {
+        const bar = document.getElementById("submissionProgressBar");
+        const pText = document.getElementById("submissionPercentText");
+        if (bar) bar.style.width = `${Math.min(100, Math.max(5, percentVal))}%`;
+        if (pText) pText.textContent = `${Math.min(100, Math.max(0, Math.round(percentVal)))}%`;
+    }
+}
+
+function showSubmissionError(errorMessage) {
+    const errCard = document.getElementById("submissionErrorCard");
+    const errText = document.getElementById("submissionErrorText");
+    if (errText) errText.textContent = errorMessage || "Submission failed. Your recording has been preserved.";
+    if (errCard) errCard.style.display = "block";
+
+    const retryBtn = document.getElementById("retrySubmissionBtn");
+    if (retryBtn) {
+        retryBtn.disabled = false;
+        retryBtn.onclick = function() {
+            hideSubmissionError();
+            retryBtn.disabled = true;
+            uploadInterviewRecording().then(function(uploaded) {
+                if (uploaded) {
+                    finalizeInterview();
+                }
+            });
+        };
+    }
+}
+
+function hideSubmissionError() {
+    const errCard = document.getElementById("submissionErrorCard");
+    if (errCard) errCard.style.display = "none";
+}
+
+async function pollSubmissionJob(jobId) {
+    let attempts = 0;
+    const maxAttempts = 150;
+    while (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 1200));
+        attempts++;
+        try {
+            const resp = await fetch(`/interview/submission/${encodeURIComponent(jobId)}/status`, {
+                headers: { "X-API-Key": "AI_INTERVIEW_2026_SECRET" }
+            });
+            if (!resp.ok) continue;
+            const data = await resp.json();
+
+            if (data.status === "failed") {
+                throw new Error(data.error_message || "Interview evaluation failed on server.");
+            }
+
+            if (data.stage === "transcribing") {
+                updateSubmissionStep(3, "active", "Transcribing speech using Faster-Whisper AI...", 55);
+            } else if (data.stage === "evaluating") {
+                updateSubmissionStep(4, "active", "Evaluating answers across technical concepts and communication...", 75);
+            } else if (data.stage === "persisting") {
+                updateSubmissionStep(5, "active", "Saving interview evaluation report to database...", 90);
+            }
+
+            if (data.status === "completed" && data.result) {
+                updateSubmissionStep(5, "completed", "Interview evaluated successfully! Preparing report...", 100);
+                return data.result;
+            }
+        } catch (pollErr) {
+            if (pollErr.message && (pollErr.message.includes("evaluation failed") || pollErr.message.includes("Interview evaluation failed"))) {
+                throw pollErr;
+            }
+            console.warn("[Submission Poll] Status poll retry:", pollErr);
+        }
+    }
+    throw new Error("Evaluation timed out. Please retry.");
+}
+
+// =========================================
 // UPLOAD INTERVIEW RECORDING
 // =========================================
 
@@ -2290,6 +2431,10 @@ async function uploadInterviewRecording() {
 
 
     try {
+
+        showSubmissionModal();
+        hideSubmissionError();
+        updateSubmissionStep(1, "completed", "Recording finalized. Preparing upload...", 15);
 
         console.log(
             "================================="
@@ -2531,69 +2676,74 @@ async function uploadInterviewRecording() {
         console.log("=================================");
 
         // =====================================
-        // SEND TO FASTAPI
+        // SEND TO FASTAPI (WITH LIVE PROGRESS & ASYNC POLLING)
         // =====================================
 
-        const response =
-            await fetch(
-                "/interview/upload",
-                {
+        formData.append("async_mode", "true");
 
-                    method: "POST",
+        let result = null;
 
-                    headers: {
+        const uploadResponse = await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", "/interview/upload");
+            xhr.setRequestHeader("X-API-Key", "AI_INTERVIEW_2026_SECRET");
 
-                        "X-API-Key":
-                            "AI_INTERVIEW_2026_SECRET"
+            updateSubmissionStep(2, "active", "Uploading recording safely to server...", 20);
 
-                    },
-
-                    body:
-                        formData
-
+            xhr.upload.onprogress = function (e) {
+                if (e.lengthComputable && e.total > 0) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    const loadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
+                    const totalMB = (e.total / (1024 * 1024)).toFixed(1);
+                    const overall = 20 + Math.round(percent * 0.25); // 20% -> 45%
+                    updateSubmissionStep(2, "active", `Uploading: ${percent}% (${loadedMB} MB / ${totalMB} MB)`, overall);
+                    const desc = document.getElementById("subUploadDesc");
+                    if (desc) desc.textContent = `${loadedMB} MB of ${totalMB} MB uploaded (${percent}%)`;
                 }
-            );
+            };
 
+            xhr.onload = function () {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const parsed = JSON.parse(xhr.responseText);
+                        resolve(parsed);
+                    } catch (parseErr) {
+                        reject(new Error("Invalid response format received from server."));
+                    }
+                } else {
+                    try {
+                        const errParsed = JSON.parse(xhr.responseText);
+                        reject(new Error(errParsed.detail || errParsed.message || `Upload failed with HTTP ${xhr.status}`));
+                    } catch (e) {
+                        reject(new Error(`Upload failed with HTTP ${xhr.status}`));
+                    }
+                }
+            };
 
-        // =====================================
-        // READ FASTAPI RESPONSE
-        // =====================================
+            xhr.onerror = function () {
+                reject(new Error("Network connection lost during upload. Please check your network and retry."));
+            };
 
-        const result =
-            await response.json();
+            xhr.ontimeout = function () {
+                reject(new Error("Upload request timed out. Please retry."));
+            };
 
+            xhr.send(formData);
+        });
 
-        console.log(
-            "================================="
-        );
+        console.log("=================================");
+        console.log("FASTAPI UPLOAD RESPONSE:", uploadResponse);
+        console.log("=================================");
 
-        console.log(
-            "FASTAPI RESPONSE:"
-        );
-
-        console.log(
-            result
-        );
-
-        console.log(
-            "================================="
-        );
-
-
-        // =====================================
-        // CHECK HTTP RESPONSE
-        // =====================================
-
-        if (
-            !response.ok
-        ) {
-
-            throw new Error(
-                result.detail ||
-                result.message ||
-                "Upload failed."
-            );
-
+        // Handle async background pipeline or immediate result
+        if (uploadResponse.status === "processing" && uploadResponse.job_id) {
+            updateSubmissionStep(2, "completed", "Recording uploaded safely. Transcribing audio...", 45);
+            result = await pollSubmissionJob(uploadResponse.job_id);
+        } else if (uploadResponse.status === "success") {
+            result = uploadResponse;
+            updateSubmissionStep(5, "completed", "Interview evaluated successfully!", 100);
+        } else {
+            throw new Error(uploadResponse.message || "Unexpected response received from server.");
         }
 
 
@@ -2902,13 +3052,10 @@ async function uploadInterviewRecording() {
             "================================="
         );
 
+        showSubmissionError(error.message || "Recording upload failed.");
+        updateSubmissionStep(2, "error", "Submission error: " + (error.message || "Failed"), null);
 
-        alert(
-            "Recording upload failed.\n\n" +
-            error.message
-        );
-
-
+        // Keep recordedBlob completely intact so candidate can safely retry
         return false;
 
     }
@@ -3244,19 +3391,18 @@ async function finalizeInterview() {
 
 
         // =====================================
-        // GO TO RESULT PAGE
+        // GO TO RESULT PAGE (SMOOTH TRANSITION)
         // =====================================
 
         const targetId = sessionStorage.getItem("interviewId");
-        window.location.href = targetId ? `result.html?id=${encodeURIComponent(targetId)}` : "result.html";
+        setTimeout(function () {
+            window.location.href = targetId ? `result.html?id=${encodeURIComponent(targetId)}` : "result.html";
+        }, 500);
 
     } else {
 
         isFinishing = false;
-
-        alert(
-            "Upload was not completed. Cannot navigate to result page."
-        );
+        console.warn("Upload was not completed. Navigation halted, recording preserved for retry.");
 
     }
 
