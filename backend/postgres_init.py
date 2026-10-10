@@ -142,6 +142,15 @@ CREATE TABLE IF NOT EXISTS Feedback (
     problem_solving_suggestions TEXT NULL,
     practice_areas TEXT NULL,
     summary TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS InterviewHistory (
+    id SERIAL PRIMARY KEY,
+    interview_id INT NOT NULL,
+    user_id INT NULL,
+    role VARCHAR(100) NULL,
+    attempt_number INT NULL,
     overall_score REAL NULL,
     technical_score REAL NULL,
     communication_score REAL NULL,
@@ -150,6 +159,9 @@ CREATE TABLE IF NOT EXISTS Feedback (
     relevance_score REAL NULL,
     completed_at TIMESTAMP NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_interview_history_interview_id ON InterviewHistory (interview_id);
+CREATE INDEX IF NOT EXISTS idx_interview_history_user_id ON InterviewHistory (user_id);
 
 CREATE TABLE IF NOT EXISTS PasswordResets (
     id SERIAL PRIMARY KEY,
@@ -258,6 +270,18 @@ def init_postgres_db(connection_url: str = None) -> bool:
 
         # 1. Execute schema creation
         cur.execute(SCHEMA_POSTGRES_SQL)
+        # Idempotent column check for existing tables
+        cur.execute("ALTER TABLE Feedback ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()")
+        # Safe idempotent backfill of existing completed interviews into InterviewHistory
+        try:
+            cur.execute("""
+                INSERT INTO InterviewHistory (interview_id, user_id, role, attempt_number, overall_score, technical_score, communication_score, confidence_score, problem_solving_score, relevance_score, completed_at)
+                SELECT i.id, i.user_id, i.role, 1, i.overall_score, i.technical_score, i.communication_score, i.confidence_score, i.problem_solving_score, i.relevance_score, i.completed_at
+                FROM Interviews i
+                WHERE NOT EXISTS (SELECT 1 FROM InterviewHistory h WHERE h.interview_id = i.id)
+            """)
+        except Exception as bf_err:
+            print(f"[Neon Init] Notice: InterviewHistory backfill notice: {bf_err}")
         print("[Neon Init] Core tables verified/created successfully.")
 
         # 2. Seed default roles

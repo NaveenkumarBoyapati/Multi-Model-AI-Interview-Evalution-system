@@ -2354,7 +2354,7 @@ function hideSubmissionError() {
 
 async function pollSubmissionJob(jobId) {
     let attempts = 0;
-    const maxAttempts = 150;
+    const maxAttempts = 250;
     while (attempts < maxAttempts) {
         await new Promise(r => setTimeout(r, 1200));
         attempts++;
@@ -2362,19 +2362,29 @@ async function pollSubmissionJob(jobId) {
             const resp = await fetch(`/interview/submission/${encodeURIComponent(jobId)}/status`, {
                 headers: { "X-API-Key": "AI_INTERVIEW_2026_SECRET" }
             });
-            if (!resp.ok) continue;
+            if (!resp.ok) {
+                if (resp.status === 404 && attempts > 15) {
+                    const nfErr = new Error("Interview submission job not found or expired on server.");
+                    nfErr.isJobFailure = true;
+                    throw nfErr;
+                }
+                continue;
+            }
             const data = await resp.json();
 
             if (data.status === "failed") {
-                throw new Error(data.error_message || "Interview evaluation failed on server.");
+                const failErr = new Error(data.error_message || "Interview evaluation failed on server.");
+                failErr.isJobFailure = true;
+                throw failErr;
             }
 
+            const stepProgress = Math.max(20, Math.min(98, data.progress || 50));
             if (data.stage === "transcribing") {
-                updateSubmissionStep(3, "active", "Transcribing speech using Faster-Whisper AI...", 55);
+                updateSubmissionStep(3, "active", data.message || "Transcribing speech using Faster-Whisper AI...", stepProgress);
             } else if (data.stage === "evaluating") {
-                updateSubmissionStep(4, "active", "Evaluating answers across technical concepts and communication...", 75);
+                updateSubmissionStep(4, "active", data.message || "Evaluating answers across technical concepts and communication...", stepProgress);
             } else if (data.stage === "persisting") {
-                updateSubmissionStep(5, "active", "Saving interview evaluation report to database...", 90);
+                updateSubmissionStep(5, "active", data.message || "Saving interview evaluation report to database...", stepProgress);
             }
 
             if (data.status === "completed" && data.result) {
@@ -2382,13 +2392,13 @@ async function pollSubmissionJob(jobId) {
                 return data.result;
             }
         } catch (pollErr) {
-            if (pollErr.message && (pollErr.message.includes("evaluation failed") || pollErr.message.includes("Interview evaluation failed"))) {
+            if (pollErr.isJobFailure) {
                 throw pollErr;
             }
             console.warn("[Submission Poll] Status poll retry:", pollErr);
         }
     }
-    throw new Error("Evaluation timed out. Please retry.");
+    throw new Error("Evaluation timed out. Please check your results on the dashboard or retry.");
 }
 
 // =========================================

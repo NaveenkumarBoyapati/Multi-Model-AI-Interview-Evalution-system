@@ -393,7 +393,7 @@ def _run_background_startup_auth():
             connection.commit()
             print("[Startup Auth] Seeded default administrator account: admin@ai-interview.com")
 
-        # Ensure Interviews table has columns for strict tab switch termination policy
+        # Ensure Interviews, InterviewHistory, and Feedback tables have all required columns and definitions
         try:
             from database import DB_ENGINE
             is_pg = (DB_ENGINE in ("postgres", "postgresql", "neon") or bool(os.getenv("DATABASE_URL") and DB_ENGINE != "sqlite"))
@@ -401,7 +401,36 @@ def _run_background_startup_auth():
                 cursor.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS termination_type VARCHAR(50) NULL")
                 cursor.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS security_violation INT NULL")
                 cursor.execute("ALTER TABLE Interviews ADD COLUMN IF NOT EXISTS terminated_at TIMESTAMP NULL")
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS InterviewHistory (
+                        id SERIAL PRIMARY KEY,
+                        interview_id INT NOT NULL,
+                        user_id INT NULL,
+                        role VARCHAR(100) NULL,
+                        attempt_number INT NULL,
+                        overall_score REAL NULL,
+                        technical_score REAL NULL,
+                        communication_score REAL NULL,
+                        confidence_score REAL NULL,
+                        problem_solving_score REAL NULL,
+                        relevance_score REAL NULL,
+                        completed_at TIMESTAMP NULL
+                    )
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_interview_history_interview_id ON InterviewHistory (interview_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_interview_history_user_id ON InterviewHistory (user_id)")
+                cursor.execute("ALTER TABLE Feedback ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()")
+                try:
+                    cursor.execute("""
+                        INSERT INTO InterviewHistory (interview_id, user_id, role, attempt_number, overall_score, technical_score, communication_score, confidence_score, problem_solving_score, relevance_score, completed_at)
+                        SELECT i.id, i.user_id, i.role, 1, i.overall_score, i.technical_score, i.communication_score, i.confidence_score, i.problem_solving_score, i.relevance_score, i.completed_at
+                        FROM Interviews i
+                        WHERE NOT EXISTS (SELECT 1 FROM InterviewHistory h WHERE h.interview_id = i.id)
+                    """)
+                except Exception as bf_err:
+                    print(f"[Startup Migration Notice] InterviewHistory backfill notice: {bf_err}")
                 connection.commit()
+                print("[Startup Migration] Verified InterviewHistory and Feedback tables in PostgreSQL.")
             elif DB_ENGINE == "sqlite":
                 for col, typ in [("termination_type", "TEXT"), ("security_violation", "INTEGER"), ("terminated_at", "TEXT")]:
                     try:
@@ -409,6 +438,29 @@ def _run_background_startup_auth():
                         connection.commit()
                     except Exception:
                         pass
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS InterviewHistory (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        interview_id INTEGER NOT NULL,
+                        user_id INTEGER,
+                        role TEXT,
+                        attempt_number INTEGER DEFAULT 1,
+                        overall_score REAL,
+                        technical_score REAL,
+                        communication_score REAL,
+                        confidence_score REAL,
+                        problem_solving_score REAL,
+                        relevance_score REAL,
+                        completed_at TEXT
+                    )
+                """)
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_interview_history_interview_id ON InterviewHistory (interview_id)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_interview_history_user_id ON InterviewHistory (user_id)")
+                try:
+                    cursor.execute("ALTER TABLE Feedback ADD COLUMN created_at TEXT NOT NULL DEFAULT (datetime('now'))")
+                except Exception:
+                    pass
+                connection.commit()
             else:
                 cursor.execute("""
                     IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'termination_type')
@@ -417,6 +469,25 @@ def _run_background_startup_auth():
                         ALTER TABLE Interviews ADD security_violation BIT NULL;
                     IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Interviews' AND COLUMN_NAME = 'terminated_at')
                         ALTER TABLE Interviews ADD terminated_at DATETIME2 NULL;
+                    IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'InterviewHistory')
+                    BEGIN
+                        CREATE TABLE InterviewHistory (
+                            id INT IDENTITY(1,1) PRIMARY KEY,
+                            interview_id INT NOT NULL,
+                            user_id INT NULL,
+                            role NVARCHAR(100) NULL,
+                            attempt_number INT NULL,
+                            overall_score FLOAT NULL,
+                            technical_score FLOAT NULL,
+                            communication_score FLOAT NULL,
+                            confidence_score FLOAT NULL,
+                            problem_solving_score FLOAT NULL,
+                            relevance_score FLOAT NULL,
+                            completed_at DATETIME2 NULL
+                        );
+                        CREATE INDEX idx_interview_history_interview_id ON InterviewHistory (interview_id);
+                        CREATE INDEX idx_interview_history_user_id ON InterviewHistory (user_id);
+                    END
                 """)
                 connection.commit()
         except Exception as mig_err:
@@ -2411,6 +2482,77 @@ def database_test():
 # - Feedback
 # =========================================
 
+def _ensure_interview_history_table(cursor):
+    """Guarantees InterviewHistory table and Feedback.created_at exist before writing."""
+    try:
+        from database import DB_ENGINE
+        is_pg = (DB_ENGINE in ("postgres", "postgresql", "neon") or bool(os.getenv("DATABASE_URL") and DB_ENGINE != "sqlite"))
+        if is_pg:
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS InterviewHistory (
+                    id SERIAL PRIMARY KEY,
+                    interview_id INT NOT NULL,
+                    user_id INT NULL,
+                    role VARCHAR(100) NULL,
+                    attempt_number INT NULL,
+                    overall_score REAL NULL,
+                    technical_score REAL NULL,
+                    communication_score REAL NULL,
+                    confidence_score REAL NULL,
+                    problem_solving_score REAL NULL,
+                    relevance_score REAL NULL,
+                    completed_at TIMESTAMP NULL
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_interview_history_interview_id ON InterviewHistory (interview_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_interview_history_user_id ON InterviewHistory (user_id)")
+            cursor.execute("ALTER TABLE Feedback ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT NOW()")
+        elif DB_ENGINE == "sqlite":
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS InterviewHistory (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    interview_id INTEGER NOT NULL,
+                    user_id INTEGER,
+                    role TEXT,
+                    attempt_number INTEGER DEFAULT 1,
+                    overall_score REAL,
+                    technical_score REAL,
+                    communication_score REAL,
+                    confidence_score REAL,
+                    problem_solving_score REAL,
+                    relevance_score REAL,
+                    completed_at TEXT
+                )
+            """)
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_interview_history_interview_id ON InterviewHistory (interview_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_interview_history_user_id ON InterviewHistory (user_id)")
+        else:
+            # SQL Server / T-SQL
+            cursor.execute("""
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'InterviewHistory')
+                BEGIN
+                    CREATE TABLE InterviewHistory (
+                        id INT IDENTITY(1,1) PRIMARY KEY,
+                        interview_id INT NOT NULL,
+                        user_id INT NULL,
+                        role NVARCHAR(100) NULL,
+                        attempt_number INT NULL,
+                        overall_score FLOAT NULL,
+                        technical_score FLOAT NULL,
+                        communication_score FLOAT NULL,
+                        confidence_score FLOAT NULL,
+                        problem_solving_score FLOAT NULL,
+                        relevance_score FLOAT NULL,
+                        completed_at DATETIME2 NULL
+                    );
+                    CREATE INDEX idx_interview_history_interview_id ON InterviewHistory (interview_id);
+                    CREATE INDEX idx_interview_history_user_id ON InterviewHistory (user_id);
+                END
+            """)
+    except Exception as eh_err:
+        print(f"[SQL Notice] _ensure_interview_history_table notice: {eh_err}")
+
+
 def save_interview_record(
     role: str,
     total_questions: int,
@@ -2445,6 +2587,8 @@ def save_interview_record(
     cursor = connection.cursor()
 
     try:
+        # Guarantee schema readiness before writing transaction
+        _ensure_interview_history_table(cursor)
         # Determine user_id
         if user_id is None and interview_id is not None:
             cursor.execute("SELECT user_id FROM Interviews WHERE id = ?", (interview_id,))
@@ -4450,10 +4594,14 @@ def get_interview(interview_id: int):
         eval_row = cursor.fetchone()
         eval_dict = dict(zip(eval_desc, eval_row)) if eval_row else None
 
-        cursor.execute("SELECT * FROM InterviewHistory WHERE interview_id = ?", (interview_id,))
-        hist_desc = [c[0] for c in cursor.description]
-        hist_row = cursor.fetchone()
-        hist_dict = dict(zip(hist_desc, hist_row)) if hist_row else None
+        hist_dict = None
+        try:
+            cursor.execute("SELECT * FROM InterviewHistory WHERE interview_id = ?", (interview_id,))
+            hist_desc = [c[0] for c in cursor.description]
+            hist_row = cursor.fetchone()
+            hist_dict = dict(zip(hist_desc, hist_row)) if hist_row else None
+        except Exception as hist_err:
+            print(f"[Interview Summary Notice] InterviewHistory fetch notice: {hist_err}")
 
         cursor.execute("SELECT * FROM Feedback WHERE interview_id = ?", (interview_id,))
         fb_desc = [c[0] for c in cursor.description]
