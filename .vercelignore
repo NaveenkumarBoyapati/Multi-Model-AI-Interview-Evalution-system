@@ -1,0 +1,38 @@
+# ====================================================================
+# Vercel Deployment Ignore Rules
+# Deploys only the static frontend (HTML, CSS, JS, images, vercel.json).
+# Excludes the FastAPI backend (hosted on Render), Docker, and test scripts.
+# ====================================================================
+
+# Backend & Python environment
+backend/
+requirements.txt
+pyproject.toml
+*.py
+__pycache__/
+
+# Docker & container configuration
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Local development and tunneling scripts
+*.bat
+*.cmd
+*.exe
+cloudflared*
+
+# Database scripts and reports
+schema.sql
+SQLQuery1.sql
+*.pdf
+
+# End-to-end tests & scratch files
+test_*.py
+test_*.js
+chrome_e2e_results.json
+scratch/
+
+# Secrets and local environments
+.env*
+.git
