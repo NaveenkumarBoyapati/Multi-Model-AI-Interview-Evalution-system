@@ -28,8 +28,15 @@ R2_PUBLIC_URL = os.getenv("R2_PUBLIC_URL", "").strip().rstrip("/")
 _S3_CLIENT = None
 
 def is_r2_configured() -> bool:
-    """Returns True if all required Cloudflare R2 credentials are set."""
-    return bool(R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME)
+    """Returns True only if all required Cloudflare R2 credentials are set and not placeholder values."""
+    if not (R2_ACCOUNT_ID and R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY and R2_BUCKET_NAME):
+        return False
+    # Check for placeholder strings (like 'value' from UI or template text)
+    placeholders = {"value", "none", "null", "placeholder", "your_cloudflare_account_id", "your_r2_access_key_id", "your_r2_secret_access_key"}
+    for v in (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY):
+        if v.lower() in placeholders:
+            return False
+    return True
 
 def get_s3_client():
     global _S3_CLIENT
