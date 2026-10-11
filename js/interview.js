@@ -2667,7 +2667,7 @@ async function uploadInterviewRecording() {
         console.log("=================================");
 
         // =====================================
-        // STAGE 1: REQUEST CLOUDFLARE R2 PRESIGNED UPLOAD URL
+        // STAGE 1: REQUEST AMAZON S3 PRESIGNED UPLOAD URL
         // =====================================
         updateSubmissionStep(2, "active", `Checking secure cloud storage for ${recordingMB} MB recording...`, 20);
 
@@ -2696,90 +2696,101 @@ async function uploadInterviewRecording() {
             console.warn("[Storage Stage: Presign Warning] Could not reach presign endpoint:", presignErr);
         }
 
-        let isR2DirectUploadSuccessful = false;
-        let r2ObjectKey = null;
+        let isDirectUploadSuccessful = false;
+        let s3ObjectKey = null;
 
-        // Check if R2 upload is available and ready
-        if (presignData && presignData.r2_configured && presignData.upload_url && presignData.object_key) {
-            console.log("[Storage Stage: R2 Direct] Cloudflare R2 is configured. Initiating direct browser-to-R2 upload...");
-            console.log("[Storage Stage: R2 Direct] Object Key:", presignData.object_key);
+        // Check if Amazon S3 upload is available and ready (supports s3_configured and r2_configured aliases)
+        const isStorageConfigured = Boolean(
+            presignData &&
+            (presignData.s3_configured || presignData.r2_configured) &&
+            presignData.upload_url &&
+            presignData.object_key
+        );
+
+        if (isStorageConfigured) {
+            console.log("[Storage Stage: S3 Direct] Amazon S3 is configured. Initiating direct browser-to-S3 upload...");
+            console.log("[Storage Stage: S3 Direct] Object Key:", presignData.object_key);
+            console.log("[Storage Stage: S3 Direct] Region:", presignData.region || "ap-south-1");
 
             // Check if this recording was already uploaded in a previous retry of this session
-            const cachedR2Key = sessionStorage.getItem("r2_uploaded_key_" + clientSessionId);
-            if (cachedR2Key && cachedR2Key === presignData.object_key) {
-                console.log("[Storage Stage: R2 Direct] Reusing already uploaded R2 recording for session:", cachedR2Key);
-                r2ObjectKey = cachedR2Key;
-                isR2DirectUploadSuccessful = true;
-                updateSubmissionStep(2, "active", "Recording already safely stored in Cloudflare R2. Submitting metadata...", 45);
+            const cachedKey = sessionStorage.getItem("s3_uploaded_key_" + clientSessionId) ||
+                              sessionStorage.getItem("r2_uploaded_key_" + clientSessionId);
+            if (cachedKey && cachedKey === presignData.object_key) {
+                console.log("[Storage Stage: S3 Direct] Reusing already uploaded S3 recording for session:", cachedKey);
+                s3ObjectKey = cachedKey;
+                isDirectUploadSuccessful = true;
+                updateSubmissionStep(2, "active", "Recording already safely stored in Amazon S3. Submitting metadata...", 45);
             } else {
                 // =====================================
-                // STAGE 2A: DIRECT BROWSER-TO-CLOUDFLARE-R2 PUT UPLOAD
+                // STAGE 2A: DIRECT BROWSER-TO-AMAZON-S3 PUT UPLOAD
                 // (Completely bypasses Vercel 4.5 MB proxy limit and Render payload limit)
                 // =====================================
-                updateSubmissionStep(2, "active", `Uploading directly to Cloudflare R2: 0% (0.0 MB / ${recordingMB} MB)`, 22);
+                updateSubmissionStep(2, "active", `Uploading directly to Amazon S3: 0% (0.0 MB / ${recordingMB} MB)`, 22);
 
                 await new Promise((resolve, reject) => {
-                    const r2Xhr = new XMLHttpRequest();
-                    r2Xhr.open("PUT", presignData.upload_url);
-                    r2Xhr.setRequestHeader("Content-Type", (recordedBlob && recordedBlob.type) ? recordedBlob.type : "video/webm");
+                    const s3Xhr = new XMLHttpRequest();
+                    s3Xhr.open("PUT", presignData.upload_url);
+                    s3Xhr.setRequestHeader("Content-Type", (recordedBlob && recordedBlob.type) ? recordedBlob.type : "video/webm");
 
-                    r2Xhr.upload.onprogress = function (e) {
+                    s3Xhr.upload.onprogress = function (e) {
                         if (e.lengthComputable && e.total > 0) {
                             const percent = Math.round((e.loaded / e.total) * 100);
                             const loadedMB = (e.loaded / (1024 * 1024)).toFixed(1);
                             const totalMB = (e.total / (1024 * 1024)).toFixed(1);
                             const overall = 20 + Math.round(percent * 0.25); // 20% -> 45%
-                            updateSubmissionStep(2, "active", `Uploading to Cloudflare R2: ${percent}% (${loadedMB} MB / ${totalMB} MB)`, overall);
+                            updateSubmissionStep(2, "active", `Uploading to Amazon S3: ${percent}% (${loadedMB} MB / ${totalMB} MB)`, overall);
                             const desc = document.getElementById("subUploadDesc");
-                            if (desc) desc.textContent = `${loadedMB} MB of ${totalMB} MB transferred directly to Cloudflare R2 (${percent}%)`;
+                            if (desc) desc.textContent = `${loadedMB} MB of ${totalMB} MB transferred directly to Amazon S3 (${percent}%)`;
                         }
                     };
 
-                    r2Xhr.onload = function () {
-                        if (r2Xhr.status >= 200 && r2Xhr.status < 300) {
-                            console.log("[Storage Stage: R2 Direct Success] Uploaded binary to Cloudflare R2 with HTTP", r2Xhr.status);
+                    s3Xhr.onload = function () {
+                        if (s3Xhr.status >= 200 && s3Xhr.status < 300) {
+                            console.log("[Storage Stage: S3 Direct Success] Uploaded binary to Amazon S3 with HTTP", s3Xhr.status);
+                            sessionStorage.setItem("s3_uploaded_key_" + clientSessionId, presignData.object_key);
                             sessionStorage.setItem("r2_uploaded_key_" + clientSessionId, presignData.object_key);
-                            r2ObjectKey = presignData.object_key;
-                            isR2DirectUploadSuccessful = true;
+                            s3ObjectKey = presignData.object_key;
+                            isDirectUploadSuccessful = true;
                             resolve();
                         } else {
-                            console.error("[Storage Stage: R2 Direct Error] Cloudflare R2 PUT failed with HTTP", r2Xhr.status);
-                            reject(new Error(`Cloudflare R2 direct storage upload failed with HTTP ${r2Xhr.status}. Ensure CORS is enabled on your R2 bucket.`));
+                            console.error("[Storage Stage: S3 Direct Error] Amazon S3 PUT failed with HTTP", s3Xhr.status);
+                            reject(new Error(`Amazon S3 direct storage upload failed with HTTP ${s3Xhr.status}. Ensure CORS is enabled on your S3 bucket.`));
                         }
                     };
 
-                    r2Xhr.onerror = function () {
-                        reject(new Error("Network connection lost during Cloudflare R2 upload. Please check your network and retry."));
+                    s3Xhr.onerror = function () {
+                        reject(new Error("Network connection lost during Amazon S3 upload. Please check your network and retry."));
                     };
 
-                    r2Xhr.ontimeout = function () {
-                        reject(new Error("Cloudflare R2 upload timed out. Please retry."));
+                    s3Xhr.ontimeout = function () {
+                        reject(new Error("Amazon S3 upload timed out. Please retry."));
                     };
 
-                    r2Xhr.send(recordedBlob);
+                    s3Xhr.send(recordedBlob);
                 });
             }
 
             // Attach object key to metadata submission (DO NOT ATTACH recordedBlob)
-            formData.append("recording_key", r2ObjectKey);
-            formData.append("r2_object_key", r2ObjectKey);
-            console.log("[Storage Stage: Metadata] Large binary omitted from submission payload; attached recording_key:", r2ObjectKey);
+            formData.append("recording_key", s3ObjectKey);
+            formData.append("s3_object_key", s3ObjectKey);
+            formData.append("r2_object_key", s3ObjectKey);
+            console.log("[Storage Stage: Metadata] Large binary omitted from submission payload; attached recording_key:", s3ObjectKey);
 
         } else {
             // =====================================
-            // STAGE 2B: CLOUDFLARE R2 IS NOT CONFIGURED
+            // STAGE 2B: AMAZON S3 IS NOT CONFIGURED
             // (Log clear warning and fall back to direct backend upload)
             // =====================================
             console.warn("====================================================================");
-            console.warn("[STORAGE WARNING] Cloudflare R2 is NOT configured on Render backend.");
+            console.warn("[STORAGE WARNING] Amazon S3 is NOT configured on Render backend.");
             console.warn("Recordings will be saved to EPHEMERAL local disk storage on Render.");
             console.warn("Recordings will NOT persist across backend container restarts or redeploys!");
             console.warn("To enable persistent, reliable storage and bypass Vercel payload limits:");
             console.warn("Configure the following environment variables in your Render Dashboard:");
-            console.warn("  - R2_ACCOUNT_ID");
-            console.warn("  - R2_ACCESS_KEY_ID");
-            console.warn("  - R2_SECRET_ACCESS_KEY");
-            console.warn("  - R2_BUCKET_NAME");
+            console.warn("  - AWS_ACCESS_KEY_ID");
+            console.warn("  - AWS_SECRET_ACCESS_KEY");
+            console.warn("  - AWS_REGION (ap-south-1)");
+            console.warn("  - S3_BUCKET_NAME (ai-interview-recordings-nb2026)");
             console.warn("====================================================================");
 
             // Attach recording file directly
@@ -2796,18 +2807,18 @@ async function uploadInterviewRecording() {
         formData.append("async_mode", "true");
 
         // Determine target URL:
-        // If R2 direct upload was used, payload is <15KB metadata -> relative /interview/upload via Vercel proxy is fast & safe!
-        // If R2 was NOT configured AND candidate is on Vercel: relative /interview/upload exceeds Vercel 4.5MB proxy rewrite limit.
+        // If direct S3 upload was used, payload is <15KB metadata -> relative /interview/upload via Vercel proxy is fast & safe!
+        // If S3 was NOT configured AND candidate is on Vercel: relative /interview/upload exceeds Vercel 4.5MB proxy rewrite limit.
         // In that fallback case, upload directly to Render backend URL to bypass Vercel's HTTP 413 proxy limit.
         let targetSubmissionUrl = "/interview/upload";
         const isVercelHost = typeof window !== "undefined" && window.location && window.location.hostname.endsWith(".vercel.app");
-        if (!isR2DirectUploadSuccessful && isVercelHost) {
+        if (!isDirectUploadSuccessful && isVercelHost) {
             targetSubmissionUrl = "https://ai-interview-backend-new-2ccj.onrender.com/interview/upload";
             console.warn("[Storage Fallback] Bypassing Vercel 4.5MB proxy by routing large binary directly to Render:", targetSubmissionUrl);
         }
 
         console.log("[Upload Stage: Submission] Submitting metadata/payload to:", targetSubmissionUrl);
-        updateSubmissionStep(2, "active", isR2DirectUploadSuccessful ? "Recording verified in Cloudflare R2. Submitting for AI evaluation..." : "Uploading recording safely to server...", isR2DirectUploadSuccessful ? 42 : 25);
+        updateSubmissionStep(2, "active", isDirectUploadSuccessful ? "Recording verified in Amazon S3. Submitting for AI evaluation..." : "Uploading recording safely to server...", isDirectUploadSuccessful ? 42 : 25);
 
         let result = null;
 
@@ -2816,7 +2827,7 @@ async function uploadInterviewRecording() {
             xhr.open("POST", targetSubmissionUrl);
             xhr.setRequestHeader("X-API-Key", "AI_INTERVIEW_2026_SECRET");
 
-            if (!isR2DirectUploadSuccessful) {
+            if (!isDirectUploadSuccessful) {
                 xhr.upload.onprogress = function (e) {
                     if (e.lengthComputable && e.total > 0) {
                         const percent = Math.round((e.loaded / e.total) * 100);
@@ -2843,13 +2854,13 @@ async function uploadInterviewRecording() {
                         const errParsed = JSON.parse(xhr.responseText);
                         const detailMsg = errParsed.detail || errParsed.message;
                         if (xhr.status === 413) {
-                            reject(new Error("Upload failed with HTTP 413 (Payload Too Large). Cloudflare R2 storage is not configured on Render, and recording exceeds proxy payload limit. Please configure R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME on Render."));
+                            reject(new Error("Upload failed with HTTP 413 (Payload Too Large). Amazon S3 storage is not configured on Render, and recording exceeds proxy payload limit. Please configure AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, and S3_BUCKET_NAME on Render."));
                         } else {
                             reject(new Error(detailMsg || `Upload failed with HTTP ${xhr.status}`));
                         }
                     } catch (e) {
                         if (xhr.status === 413) {
-                            reject(new Error("Upload failed with HTTP 413 (Payload Too Large). Cloudflare R2 storage is not configured on Render, and recording exceeds proxy payload limit. Please configure R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME on Render."));
+                            reject(new Error("Upload failed with HTTP 413 (Payload Too Large). Amazon S3 storage is not configured on Render, and recording exceeds proxy payload limit. Please configure AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, and S3_BUCKET_NAME on Render."));
                         } else {
                             reject(new Error(`Upload failed with HTTP ${xhr.status}`));
                         }
@@ -2874,7 +2885,7 @@ async function uploadInterviewRecording() {
 
         // Handle async background pipeline or immediate result
         if (uploadResponse.status === "processing" && uploadResponse.job_id) {
-            updateSubmissionStep(2, "completed", isR2DirectUploadSuccessful ? "Recording preserved in Cloudflare R2. Transcribing audio..." : "Recording uploaded safely. Transcribing audio...", 45);
+            updateSubmissionStep(2, "completed", isDirectUploadSuccessful ? "Recording preserved in Amazon S3. Transcribing audio..." : "Recording uploaded safely. Transcribing audio...", 45);
             result = await pollSubmissionJob(uploadResponse.job_id);
         } else if (uploadResponse.status === "success") {
             result = uploadResponse;

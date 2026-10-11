@@ -3867,7 +3867,8 @@ def execute_submission_pipeline(
 
 
 # =========================================
-# CLOUDFLARE R2 PRESIGNED UPLOAD & STORAGE STATUS
+# =========================================
+# AMAZON S3 PRESIGNED UPLOAD & STORAGE STATUS
 # =========================================
 
 @app.get("/interview/storage/status")
@@ -3875,23 +3876,24 @@ def execute_submission_pipeline(
 def get_storage_status():
     """
     Returns non-sensitive storage health status for diagnostics and UI status indicators.
-    Never exposes R2 credentials or access keys.
+    Never exposes S3 credentials or access keys.
     """
     try:
-        from storage_service import is_r2_configured, get_r2_config
-        r2_ready = is_r2_configured()
-        cfg = get_r2_config()
+        from storage_service import is_s3_configured, get_s3_config
+        s3_ready = is_s3_configured()
+        cfg = get_s3_config()
         return {
-            "r2_configured": r2_ready,
-            "storage_mode": "cloudflare_r2" if r2_ready else "ephemeral_local",
-            "bucket": cfg["bucket_name"] if r2_ready else None,
-            "has_account_id": bool(cfg["account_id"]),
+            "s3_configured": s3_ready,
+            "r2_configured": s3_ready,  # backward compatibility alias
+            "storage_mode": "amazon_s3" if s3_ready else "ephemeral_local",
+            "bucket": cfg["bucket_name"] if s3_ready else None,
+            "region": cfg["region"] if s3_ready else None,
             "has_access_key": bool(cfg["access_key_id"]),
-            "has_secret_key": bool(cfg["secret_access_key"]),
-            "has_public_url": bool(cfg["public_url"])
+            "has_secret_key": bool(cfg["secret_access_key"])
         }
     except Exception as exc:
         return {
+            "s3_configured": False,
             "r2_configured": False,
             "storage_mode": "ephemeral_local",
             "error": str(exc)
@@ -3905,8 +3907,8 @@ async def presign_interview_upload(
     x_api_key: Optional[str] = Header(None)
 ):
     """
-    Generates a secure, short-lived presigned PUT URL for Cloudflare R2 direct uploads.
-    The browser PUTs the large WebM recording directly to Cloudflare R2, bypassing
+    Generates a secure, short-lived presigned PUT URL for Amazon S3 direct uploads.
+    The browser PUTs the large WebM recording directly to Amazon S3, bypassing
     Vercel's 4.5 MB proxy limit and Render server body buffering entirely.
     """
     if x_api_key is not None and x_api_key != API_KEY:
@@ -3938,18 +3940,19 @@ async def presign_interview_upload(
     print(f"\n[Storage Stage: Presign Request] Role: '{req_role}' | Session: {req_session_id} | Stated Size: {req_file_size} bytes")
 
     try:
-        from storage_service import is_r2_configured, generate_presigned_upload_url
-        if not is_r2_configured():
-            print(f"[Storage Stage: Presign Notice] Cloudflare R2 is not configured. Direct browser R2 upload unavailable.")
+        from storage_service import is_s3_configured, generate_presigned_upload_url
+        if not is_s3_configured():
+            print(f"[Storage Stage: Presign Notice] Amazon S3 is not configured. Direct browser S3 upload unavailable.")
             return {
+                "s3_configured": False,
                 "r2_configured": False,
-                "status": "r2_not_configured",
-                "message": "Cloudflare R2 is not configured on the backend server. Environment variables (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME) are required for persistent recording storage.",
+                "status": "s3_not_configured",
+                "message": "Amazon S3 is not configured on the backend server. Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, S3_BUCKET_NAME) are required for persistent recording storage.",
                 "required_env_vars": [
-                    "R2_ACCOUNT_ID",
-                    "R2_ACCESS_KEY_ID",
-                    "R2_SECRET_ACCESS_KEY",
-                    "R2_BUCKET_NAME"
+                    "AWS_ACCESS_KEY_ID",
+                    "AWS_SECRET_ACCESS_KEY",
+                    "AWS_REGION",
+                    "S3_BUCKET_NAME"
                 ],
                 "direct_backend_upload_url": "/interview/upload"
             }
@@ -3968,6 +3971,7 @@ async def presign_interview_upload(
         if not presigned.get("success"):
             print(f"[Storage Stage: Presign Error] Failed: {presigned.get('error')}")
             return {
+                "s3_configured": True,
                 "r2_configured": True,
                 "status": "error",
                 "message": f"Failed to generate presigned upload URL: {presigned.get('error')}",
@@ -3976,17 +3980,19 @@ async def presign_interview_upload(
 
         print(f"[Storage Stage: Presigned URL Ready] Object Key: {object_key}")
         return {
+            "s3_configured": True,
             "r2_configured": True,
             "status": "success",
             "upload_url": presigned["upload_url"],
             "object_key": object_key,
             "bucket": presigned.get("bucket"),
-            "expires_in": 900,
-            "public_url": presigned.get("public_url")
+            "region": presigned.get("region"),
+            "expires_in": 900
         }
     except Exception as exc:
         print(f"[Storage Stage: Presign Exception] {exc}")
         return {
+            "s3_configured": False,
             "r2_configured": False,
             "status": "error",
             "message": str(exc),
@@ -4010,6 +4016,7 @@ async def upload_interview(
     unanswered_questions: Optional[int] = Form(None),
     recording: Optional[UploadFile] = File(None),
     recording_key: Optional[str] = Form(None),
+    s3_object_key: Optional[str] = Form(None),
     r2_object_key: Optional[str] = Form(None),
     question_data: str = Form("[]"),
     tab_switch_count: int = Form(0),
@@ -4146,31 +4153,31 @@ async def upload_interview(
         safe_role = "".join(c if c.isalnum() else "_" for c in role)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
-        # Resolve recording: direct R2 object key OR uploaded binary file
-        target_object_key = str(recording_key or r2_object_key or "").strip()
-        has_r2_key = bool(target_object_key and target_object_key.lower() not in ("none", "null", "undefined"))
+        # Resolve recording: direct Amazon S3/R2 object key OR uploaded binary file
+        target_object_key = str(recording_key or s3_object_key or r2_object_key or "").strip()
+        has_storage_key = bool(target_object_key and target_object_key.lower() not in ("none", "null", "undefined"))
         has_upload_file = bool(recording and hasattr(recording, "file") and recording.file)
 
         t_save_start = time.time()
         t_save_end = t_save_start
 
-        if has_r2_key:
+        if has_storage_key:
             from storage_service import verify_object_in_storage, download_file_from_storage
-            print(f"\n[Storage Stage: Verification] Verifying uploaded object key in Cloudflare R2: '{target_object_key}'")
+            print(f"\n[Storage Stage: Verification] Verifying uploaded object key in Amazon S3: '{target_object_key}'")
             verification = verify_object_in_storage(target_object_key)
             if not verification.get("exists"):
-                err_detail = verification.get("error", "Object not found or is empty in Cloudflare R2 bucket.")
+                err_detail = verification.get("error", "Object not found or is empty in Amazon S3 bucket.")
                 print(f"[Storage Stage: Verification Error] {err_detail}")
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Recording verification failed: '{target_object_key}' was not found in Cloudflare R2. {err_detail}"
+                    detail=f"Recording verification failed: '{target_object_key}' was not found in Amazon S3. {err_detail}"
                 )
 
-            base_r2_name = os.path.basename(target_object_key)
-            filename = base_r2_name if base_r2_name.endswith(".webm") else f"{safe_role}_{timestamp}.webm"
+            base_s3_name = os.path.basename(target_object_key)
+            filename = base_s3_name if base_s3_name.endswith(".webm") else f"{safe_role}_{timestamp}.webm"
             file_path = os.path.join(UPLOAD_DIR, filename)
 
-            print(f"[Storage Stage: Download] Retrieving recording from R2 to local path '{file_path}' ({verification.get('size_bytes')} bytes)...")
+            print(f"[Storage Stage: Download] Retrieving recording from S3 to local path '{file_path}' ({verification.get('size_bytes')} bytes)...")
             t_dl_start = time.time()
             dl_ok = download_file_from_storage(target_object_key, file_path)
             t_dl_end = time.time()
@@ -4196,15 +4203,15 @@ async def upload_interview(
             t_save_end = time.time()
             file_size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
 
-            # Mirror recording to Cloudflare R2 persistent storage if configured
+            # Mirror recording to Amazon S3 persistent storage if configured
             try:
                 from storage_service import upload_file_to_storage
                 upload_file_to_storage(file_path, f"recordings/{filename}", content_type="video/webm")
             except Exception as st_err:
-                print(f"[Storage Service Notice] Local recording saved; R2 sync notice: {st_err}")
+                print(f"[Storage Service Notice] Local recording saved; S3 sync notice: {st_err}")
 
         else:
-            # Neither R2 key nor file provided - allow only if terminated interview
+            # Neither S3 key nor file provided - allow only if terminated interview
             filename = f"{safe_role}_{timestamp}.webm"
             file_path = os.path.join(UPLOAD_DIR, filename)
             file_size_bytes = 0
@@ -4212,7 +4219,7 @@ async def upload_interview(
                 print("[Storage Stage Error] Neither 'recording' file nor 'recording_key' provided in request.")
                 raise HTTPException(
                     status_code=400,
-                    detail="Recording required: Either 'recording' binary file or 'recording_key' from Cloudflare R2 must be provided."
+                    detail="Recording required: Either 'recording' binary file or 'recording_key' from Amazon S3 must be provided."
                 )
 
         print("\n" + "=" * 60)
@@ -4906,23 +4913,23 @@ def get_interview_recording(interview_id: int):
             if os.path.exists(cand_path) and os.path.getsize(cand_path) > 0:
                 target_path = cand_path
         if not target_path:
-            # Check Cloudflare R2 persistent storage
+            # Check Amazon S3 persistent storage
             try:
-                from storage_service import is_r2_configured, get_recording_access_url
-                if is_r2_configured():
+                from storage_service import is_s3_configured, get_recording_access_url
+                if is_s3_configured():
                     candidate_keys = []
                     if rec_fname:
                         candidate_keys.extend([f"recordings/{rec_fname}", rec_fname])
                     if rec_path:
                         base = os.path.basename(rec_path)
                         candidate_keys.extend([f"recordings/{base}", base])
-                    for r2_k in candidate_keys:
-                        r2_url = get_recording_access_url(r2_k)
-                        if r2_url:
-                            print(f"[Recording Serving] Redirecting interview #{interview_id} playback to Cloudflare R2: {r2_k}")
-                            return RedirectResponse(url=r2_url, status_code=307)
-            except Exception as r2_redir_err:
-                print(f"[Recording Serving Warning] R2 redirect notice for interview #{interview_id}: {r2_redir_err}")
+                    for s3_k in candidate_keys:
+                        s3_url = get_recording_access_url(s3_k)
+                        if s3_url:
+                            print(f"[Recording Serving] Redirecting interview #{interview_id} playback to Amazon S3: {s3_k}")
+                            return RedirectResponse(url=s3_url, status_code=307)
+            except Exception as s3_redir_err:
+                print(f"[Recording Serving Warning] S3 redirect notice for interview #{interview_id}: {s3_redir_err}")
             raise HTTPException(status_code=404, detail="Recording unavailable")
         return FileResponse(
             target_path,
