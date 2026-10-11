@@ -3305,6 +3305,7 @@ def save_interview_record(
 
 IDEMPOTENT_UPLOAD_CACHE: Dict[str, Any] = {}
 SUBMISSION_JOBS: Dict[str, Dict[str, Any]] = {}
+SESSION_ACTIVE_JOBS: Dict[str, str] = {}
 
 def build_idempotent_interview_response(interview_id: int, row: tuple, cursor) -> Dict[str, Any]:
     """Builds consistent interview upload response for already processed/terminated interviews."""
@@ -3866,17 +3867,150 @@ def execute_submission_pipeline(
 
 
 # =========================================
+# CLOUDFLARE R2 PRESIGNED UPLOAD & STORAGE STATUS
+# =========================================
+
+@app.get("/interview/storage/status")
+@app.get("/api/interview/storage/status")
+def get_storage_status():
+    """
+    Returns non-sensitive storage health status for diagnostics and UI status indicators.
+    Never exposes R2 credentials or access keys.
+    """
+    try:
+        from storage_service import is_r2_configured, get_r2_config
+        r2_ready = is_r2_configured()
+        cfg = get_r2_config()
+        return {
+            "r2_configured": r2_ready,
+            "storage_mode": "cloudflare_r2" if r2_ready else "ephemeral_local",
+            "bucket": cfg["bucket_name"] if r2_ready else None,
+            "has_account_id": bool(cfg["account_id"]),
+            "has_access_key": bool(cfg["access_key_id"]),
+            "has_secret_key": bool(cfg["secret_access_key"]),
+            "has_public_url": bool(cfg["public_url"])
+        }
+    except Exception as exc:
+        return {
+            "r2_configured": False,
+            "storage_mode": "ephemeral_local",
+            "error": str(exc)
+        }
+
+
+@app.post("/interview/presign_upload")
+@app.post("/api/interview/presign_upload")
+async def presign_interview_upload(
+    request: Request,
+    x_api_key: Optional[str] = Header(None)
+):
+    """
+    Generates a secure, short-lived presigned PUT URL for Cloudflare R2 direct uploads.
+    The browser PUTs the large WebM recording directly to Cloudflare R2, bypassing
+    Vercel's 4.5 MB proxy limit and Render server body buffering entirely.
+    """
+    if x_api_key is not None and x_api_key != API_KEY:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid API key"
+        )
+
+    # Accept either JSON or Form data
+    content_type_header = (request.headers.get("content-type") or "").lower()
+    data = {}
+    if "application/json" in content_type_header:
+        try:
+            data = await request.json()
+        except Exception:
+            data = {}
+    else:
+        try:
+            form = await request.form()
+            data = dict(form)
+        except Exception:
+            data = {}
+
+    req_role = str(data.get("role") or "Python Developer").strip()
+    req_session_id = data.get("client_session_id")
+    req_file_size = data.get("file_size")
+    req_content_type = str(data.get("content_type") or "video/webm").strip()
+
+    print(f"\n[Storage Stage: Presign Request] Role: '{req_role}' | Session: {req_session_id} | Stated Size: {req_file_size} bytes")
+
+    try:
+        from storage_service import is_r2_configured, generate_presigned_upload_url
+        if not is_r2_configured():
+            print(f"[Storage Stage: Presign Notice] Cloudflare R2 is not configured. Direct browser R2 upload unavailable.")
+            return {
+                "r2_configured": False,
+                "status": "r2_not_configured",
+                "message": "Cloudflare R2 is not configured on the backend server. Environment variables (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME) are required for persistent recording storage.",
+                "required_env_vars": [
+                    "R2_ACCOUNT_ID",
+                    "R2_ACCESS_KEY_ID",
+                    "R2_SECRET_ACCESS_KEY",
+                    "R2_BUCKET_NAME"
+                ],
+                "direct_backend_upload_url": "/interview/upload"
+            }
+
+        safe_role = "".join(c if c.isalnum() else "_" for c in req_role).strip("_") or "interview"
+        ts = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        rand_id = uuid.uuid4().hex[:8]
+        object_key = f"recordings/{safe_role}_{ts}_{rand_id}.webm"
+
+        presigned = generate_presigned_upload_url(
+            object_key=object_key,
+            content_type=req_content_type,
+            expires_in=900
+        )
+
+        if not presigned.get("success"):
+            print(f"[Storage Stage: Presign Error] Failed: {presigned.get('error')}")
+            return {
+                "r2_configured": True,
+                "status": "error",
+                "message": f"Failed to generate presigned upload URL: {presigned.get('error')}",
+                "stage": "presign_generation"
+            }
+
+        print(f"[Storage Stage: Presigned URL Ready] Object Key: {object_key}")
+        return {
+            "r2_configured": True,
+            "status": "success",
+            "upload_url": presigned["upload_url"],
+            "object_key": object_key,
+            "bucket": presigned.get("bucket"),
+            "expires_in": 900,
+            "public_url": presigned.get("public_url")
+        }
+    except Exception as exc:
+        print(f"[Storage Stage: Presign Exception] {exc}")
+        return {
+            "r2_configured": False,
+            "status": "error",
+            "message": str(exc),
+            "stage": "presign_exception"
+        }
+
+
+# =========================================
 # INTERVIEW UPLOAD & EVALUATION API
 # =========================================
 
 @app.post("/interview/upload")
+@app.post("/api/interview/upload")
+@app.post("/interview/submit")
+@app.post("/api/interview/submit")
 async def upload_interview(
     role: str = Form(...),
     total_questions: int = Form(20),
     attempted_questions: Optional[int] = Form(None),
     answered_questions: Optional[int] = Form(None),
     unanswered_questions: Optional[int] = Form(None),
-    recording: UploadFile = File(...),
+    recording: Optional[UploadFile] = File(None),
+    recording_key: Optional[str] = Form(None),
+    r2_object_key: Optional[str] = Form(None),
     question_data: str = Form("[]"),
     tab_switch_count: int = Form(0),
     terminated_reason: str = Form(""),
@@ -3919,6 +4053,22 @@ async def upload_interview(
                     parsed_user_id = int(clean_uid)
             except (ValueError, TypeError):
                 parsed_user_id = None
+
+        # Idempotency check: client_session_id active job
+        if client_session_id and client_session_id in SESSION_ACTIVE_JOBS:
+            act_jid = SESSION_ACTIVE_JOBS[client_session_id]
+            if act_jid in SUBMISSION_JOBS:
+                act_job = SUBMISSION_JOBS[act_jid]
+                if act_job.get("status") in ("processing", "completed"):
+                    print(f"[Idempotency] Returning existing job '{act_jid}' for session '{client_session_id}'")
+                    return {
+                        "status": act_job.get("status"),
+                        "job_id": act_jid,
+                        "stage": act_job.get("stage"),
+                        "progress": act_job.get("progress"),
+                        "message": act_job.get("message"),
+                        "interview_id": act_job.get("interview_id")
+                    }
 
         # Idempotency check: client_session_id cache
         if client_session_id and client_session_id in IDEMPOTENT_UPLOAD_CACHE:
@@ -3995,25 +4145,75 @@ async def upload_interview(
 
         safe_role = "".join(c if c.isalnum() else "_" for c in role)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        filename = f"{safe_role}_{timestamp}.webm"
-        file_path = os.path.join(UPLOAD_DIR, filename)
 
-        # =====================================
-        # SAVE RECORDING FILE
-        # =====================================
+        # Resolve recording: direct R2 object key OR uploaded binary file
+        target_object_key = str(recording_key or r2_object_key or "").strip()
+        has_r2_key = bool(target_object_key and target_object_key.lower() not in ("none", "null", "undefined"))
+        has_upload_file = bool(recording and hasattr(recording, "file") and recording.file)
+
         t_save_start = time.time()
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(recording.file, buffer)
-        t_save_end = time.time()
+        t_save_end = t_save_start
 
-        # Mirror recording to Cloudflare R2 persistent storage if configured
-        try:
-            from storage_service import upload_file_to_storage
-            upload_file_to_storage(file_path, f"recordings/{filename}", content_type="video/webm")
-        except Exception as st_err:
-            print(f"[Storage Service Notice] Local recording saved; R2 sync notice: {st_err}")
+        if has_r2_key:
+            from storage_service import verify_object_in_storage, download_file_from_storage
+            print(f"\n[Storage Stage: Verification] Verifying uploaded object key in Cloudflare R2: '{target_object_key}'")
+            verification = verify_object_in_storage(target_object_key)
+            if not verification.get("exists"):
+                err_detail = verification.get("error", "Object not found or is empty in Cloudflare R2 bucket.")
+                print(f"[Storage Stage: Verification Error] {err_detail}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Recording verification failed: '{target_object_key}' was not found in Cloudflare R2. {err_detail}"
+                )
 
-        file_size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+            base_r2_name = os.path.basename(target_object_key)
+            filename = base_r2_name if base_r2_name.endswith(".webm") else f"{safe_role}_{timestamp}.webm"
+            file_path = os.path.join(UPLOAD_DIR, filename)
+
+            print(f"[Storage Stage: Download] Retrieving recording from R2 to local path '{file_path}' ({verification.get('size_bytes')} bytes)...")
+            t_dl_start = time.time()
+            dl_ok = download_file_from_storage(target_object_key, file_path)
+            t_dl_end = time.time()
+            t_save_start = t_dl_start
+            t_save_end = t_dl_end
+
+            if not dl_ok or not os.path.exists(file_path) or os.path.getsize(file_path) == 0:
+                print(f"[Storage Stage: Download Error] Failed to retrieve '{target_object_key}' to {file_path}")
+                raise HTTPException(
+                    status_code=500,
+                    detail="Failed to retrieve recording from persistent cloud storage for AI evaluation."
+                )
+
+            file_size_bytes = os.path.getsize(file_path)
+            print(f"[Storage Stage: Download Complete] Retrieved {file_size_bytes} bytes in {round(t_dl_end - t_dl_start, 2)}s")
+
+        elif has_upload_file:
+            filename = f"{safe_role}_{timestamp}.webm"
+            file_path = os.path.join(UPLOAD_DIR, filename)
+            t_save_start = time.time()
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(recording.file, buffer)
+            t_save_end = time.time()
+            file_size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+
+            # Mirror recording to Cloudflare R2 persistent storage if configured
+            try:
+                from storage_service import upload_file_to_storage
+                upload_file_to_storage(file_path, f"recordings/{filename}", content_type="video/webm")
+            except Exception as st_err:
+                print(f"[Storage Service Notice] Local recording saved; R2 sync notice: {st_err}")
+
+        else:
+            # Neither R2 key nor file provided - allow only if terminated interview
+            filename = f"{safe_role}_{timestamp}.webm"
+            file_path = os.path.join(UPLOAD_DIR, filename)
+            file_size_bytes = 0
+            if not (tab_switch_count or terminated_reason or termination_type or (interview_status and interview_status.lower() == "terminated")):
+                print("[Storage Stage Error] Neither 'recording' file nor 'recording_key' provided in request.")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Recording required: Either 'recording' binary file or 'recording_key' from Cloudflare R2 must be provided."
+                )
 
         print("\n" + "=" * 60)
         print(f"INTERVIEW RECORDING RECEIVED & SAVED ({round(t_save_end - t_save_start, 3)}s)")
@@ -4189,6 +4389,8 @@ async def upload_interview(
 
         if is_async_requested:
             job_id = f"job_{uuid.uuid4().hex[:12]}"
+            if client_session_id:
+                SESSION_ACTIVE_JOBS[client_session_id] = job_id
             SUBMISSION_JOBS[job_id] = {
                 "job_id": job_id,
                 "status": "processing",
@@ -4267,6 +4469,8 @@ async def upload_interview(
             raw_candidate_name=candidate_name
         )
 
+    except HTTPException:
+        raise
     except Exception as error:
         print("\n" + "=" * 50)
         print("CRITICAL UPLOAD/EVALUATION ERROR:")
@@ -4284,6 +4488,7 @@ async def upload_interview(
 # =========================================
 
 @app.get("/interview/submission/{job_id}/status")
+@app.get("/api/interview/submission/{job_id}/status")
 async def get_submission_status(job_id: str, x_api_key: str = Header(None)):
     """
     Returns live progress and results for staged interview submissions.
@@ -4678,9 +4883,11 @@ def get_interview(interview_id: int):
 # =========================================
 
 @app.get("/interview/{interview_id}/recording")
+@app.get("/api/interview/{interview_id}/recording")
 def get_interview_recording(interview_id: int):
     """
     Directly streams or serves the saved interview recording WebM file.
+    If local file was wiped by container restart, transparently redirects to Cloudflare R2 secure access URL.
     Works for both completed and terminated interviews.
     """
     conn = get_connection()
@@ -4699,6 +4906,23 @@ def get_interview_recording(interview_id: int):
             if os.path.exists(cand_path) and os.path.getsize(cand_path) > 0:
                 target_path = cand_path
         if not target_path:
+            # Check Cloudflare R2 persistent storage
+            try:
+                from storage_service import is_r2_configured, get_recording_access_url
+                if is_r2_configured():
+                    candidate_keys = []
+                    if rec_fname:
+                        candidate_keys.extend([f"recordings/{rec_fname}", rec_fname])
+                    if rec_path:
+                        base = os.path.basename(rec_path)
+                        candidate_keys.extend([f"recordings/{base}", base])
+                    for r2_k in candidate_keys:
+                        r2_url = get_recording_access_url(r2_k)
+                        if r2_url:
+                            print(f"[Recording Serving] Redirecting interview #{interview_id} playback to Cloudflare R2: {r2_k}")
+                            return RedirectResponse(url=r2_url, status_code=307)
+            except Exception as r2_redir_err:
+                print(f"[Recording Serving Warning] R2 redirect notice for interview #{interview_id}: {r2_redir_err}")
             raise HTTPException(status_code=404, detail="Recording unavailable")
         return FileResponse(
             target_path,
