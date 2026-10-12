@@ -72,7 +72,7 @@ import json
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 
@@ -231,23 +231,27 @@ def redirect_admin_dashboard():
 
 
 @app.get("/forgot_password.html")
-def redirect_forgot_password():
-    return RedirectResponse(url="/app/forgot_password.html")
+def redirect_forgot_password(request: Request):
+    q = request.url.query
+    return RedirectResponse(url="/app/forgot_password.html" + (f"?{q}" if q else ""))
 
 
 @app.get("/reset_password.html")
-def redirect_reset_password():
-    return RedirectResponse(url="/app/reset_password.html")
+def redirect_reset_password(request: Request):
+    q = request.url.query
+    return RedirectResponse(url="/app/reset_password.html" + (f"?{q}" if q else ""))
 
 
 @app.get("/change_password.html")
-def redirect_change_password():
-    return RedirectResponse(url="/app/change_password.html")
+def redirect_change_password(request: Request):
+    q = request.url.query
+    return RedirectResponse(url="/app/change_password.html" + (f"?{q}" if q else ""))
 
 
 @app.get("/profile.html")
-def redirect_profile():
-    return RedirectResponse(url="/app/profile.html")
+def redirect_profile(request: Request):
+    q = request.url.query
+    return RedirectResponse(url="/app/profile.html" + (f"?{q}" if q else ""))
 
 
 # =========================================
@@ -1420,16 +1424,55 @@ def change_password(req: ChangePasswordRequest, current_user: Dict[str, Any] = D
         connection.close()
 
 
+def is_production_environment(request: Optional[Request] = None) -> bool:
+    """
+    Returns True if running in production or cloud deployment (Render, Vercel).
+    In production mode, sensitive tokens, reset links, and dev notices are NEVER exposed.
+    """
+    env = os.getenv("ENV", os.getenv("APP_ENV", os.getenv("ENVIRONMENT", ""))).lower().strip()
+    if env in ("production", "prod", "staging"):
+        return True
+    if os.getenv("RENDER") or os.getenv("VERCEL"):
+        return True
+    if request:
+        for hdr_name in ("origin", "referer", "x-forwarded-host", "host"):
+            hdr_val = request.headers.get(hdr_name)
+            if hdr_val:
+                host_only = hdr_val.lower().replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
+                if host_only and host_only not in ("127.0.0.1", "localhost", "0.0.0.0", "testserver", "[::1]"):
+                    return True
+    if env in ("development", "dev", "local", "test"):
+        return False
+    return False
+
+
+def is_token_expired(expires_at: Any) -> bool:
+    """
+    Safely verifies whether a token expiration timestamp is in the past across
+    naive datetime, timezone-aware datetime (UTC), and ISO string formats.
+    """
+    if expires_at is None:
+        return True
+    if isinstance(expires_at, str):
+        try:
+            clean = expires_at.replace("T", " ")[:19]
+            expires_at = datetime.strptime(clean, "%Y-%m-%d %H:%M:%S")
+        except Exception:
+            return True
+    if isinstance(expires_at, datetime):
+        if expires_at.tzinfo is not None:
+            return expires_at < datetime.now(timezone.utc)
+        return expires_at < datetime.now(timezone.utc).replace(tzinfo=None)
+    return False
+
+
 def resolve_app_base_url(request: Optional[Request] = None) -> str:
     """
     Dynamically resolves the application base URL for generating password reset links.
     Priority order:
-    1. If request is provided, inspect Origin, Referer, X-Forwarded-Host, or Host headers.
-       When accessing via Cloudflare Tunnel (e.g. *.trycloudflare.com) or an external proxy/domain,
-       dynamically extract the public HTTPS base URL from the incoming request.
-    2. Check APP_BASE_URL environment variable (dynamically reloading .env so new tunnels are picked up).
-       If set to an external public domain (e.g. trycloudflare.com or custom domain), use it.
-    3. If APP_BASE_URL in environment is set (even localhost/127.0.0.1 for local dev), use it.
+    1. If request is provided, inspect Origin or Referer header (from frontend Vercel app or public domain).
+    2. Check APP_BASE_URL environment variable (configured for Vercel frontend or public custom domain).
+    3. Check X-Forwarded-Host or Host header from request.
     4. Fallback to http://127.0.0.1:8000 for local development and test suites.
     """
     from urllib.parse import urlparse
@@ -1456,41 +1499,22 @@ def resolve_app_base_url(request: Optional[Request] = None) -> str:
             pass
         return None
 
-    # 1. Dynamically inspect incoming request headers (Origin, Referer, X-Forwarded-Host, Host)
+    # 1. Dynamically inspect incoming Origin or Referer (sent by browser on Vercel frontend)
     if request:
         try:
-            # 1a. Check Origin header (browsers send this on POST /api/auth/forgot-password)
             origin_hdr = request.headers.get("origin")
             ext = _extract_external_base(origin_hdr)
             if ext:
                 return ext
 
-            # 1b. Check Referer header (e.g. https://xxx.trycloudflare.com/app/forgot_password.html)
             referer_hdr = request.headers.get("referer")
             ext = _extract_external_base(referer_hdr)
             if ext:
                 return ext
-
-            # 1c. Check X-Forwarded-Host & X-Forwarded-Proto
-            fwd_host = (request.headers.get("x-forwarded-host") or "").strip()
-            fwd_proto = (request.headers.get("x-forwarded-proto") or "").strip().lower()
-            if fwd_host:
-                proto = fwd_proto or ("https" if "trycloudflare.com" in fwd_host.lower() else "http")
-                ext = _extract_external_base(fwd_host, default_proto=proto)
-                if ext:
-                    return ext
-
-            # 1d. Check Host header
-            host_hdr = (request.headers.get("host") or "").strip()
-            if host_hdr:
-                proto = "https" if ("trycloudflare.com" in host_hdr.lower() or request.url.scheme == "https") else request.url.scheme
-                ext = _extract_external_base(host_hdr, default_proto=proto)
-                if ext:
-                    return ext
         except Exception as e:
-            print(f"[Base URL Resolution Notice] Error inspecting request headers: {e}")
+            print(f"[Base URL Resolution Notice] Error inspecting request origin/referer: {e}")
 
-    # 2. Inspect APP_BASE_URL from environment / .env
+    # 2. Inspect APP_BASE_URL from environment
     env_base = os.getenv("APP_BASE_URL", "").strip().rstrip("/")
     if not env_base:
         try:
@@ -1505,7 +1529,27 @@ def resolve_app_base_url(request: Optional[Request] = None) -> str:
         # If set to local address (e.g. http://localhost:8000), use it for intentional local testing
         return env_base
 
-    # 3. Fallback to 127.0.0.1:8000 for local development
+    # 3. Check X-Forwarded-Host and Host headers
+    if request:
+        try:
+            fwd_host = (request.headers.get("x-forwarded-host") or "").strip()
+            fwd_proto = (request.headers.get("x-forwarded-proto") or "").strip().lower()
+            if fwd_host:
+                proto = fwd_proto or ("https" if "trycloudflare.com" in fwd_host.lower() else "http")
+                ext = _extract_external_base(fwd_host, default_proto=proto)
+                if ext:
+                    return ext
+
+            host_hdr = (request.headers.get("host") or "").strip()
+            if host_hdr:
+                proto = "https" if ("trycloudflare.com" in host_hdr.lower() or request.url.scheme == "https") else request.url.scheme
+                ext = _extract_external_base(host_hdr, default_proto=proto)
+                if ext:
+                    return ext
+        except Exception as e:
+            print(f"[Base URL Resolution Notice] Error inspecting request host headers: {e}")
+
+    # 4. Fallback to 127.0.0.1:8000 for local development
     return "http://127.0.0.1:8000"
 
 
@@ -1514,24 +1558,49 @@ def forgot_password(req: ForgotPasswordRequest, request: Request = None):
     """
     Initiates single-use, 15-minute password reset token flow.
     Provides indistinguishable generic responses to eliminate email enumeration attacks.
+    Never exposes reset links, tokens, or credentials in production responses or logs.
     """
     clean_email = normalize_email(req.email)
+    is_prod = is_production_environment(request)
     smtp_ok = is_smtp_configured()
+
     generic_msg = (
         "Password reset link sent successfully. Please check your email inbox and spam folder."
         if smtp_ok
         else (
-            "If this email address is registered in our system, you will receive single-use "
-            "password reset instructions shortly."
+            "Password reset service is temporarily unavailable. Please contact the administrator."
+            if is_prod
+            else (
+                "If this email address is registered in our system, you will receive single-use "
+                "password reset instructions shortly."
+            )
         )
     )
 
     if not clean_email:
+        if is_prod and not smtp_ok:
+            return {
+                "status": "error",
+                "delivery_status": "unconfigured",
+                "smtp_configured": False,
+                "message": "Password reset service is temporarily unavailable. Please contact the administrator."
+            }
         return {
             "status": "success",
             "delivery_status": "sent" if smtp_ok else "unconfigured",
             "message": generic_msg,
             "smtp_configured": smtp_ok
+        }
+
+    # If SMTP is not configured in production, report error clearly without falsely claiming email was sent
+    if is_prod and not smtp_ok:
+        missing_vars = get_missing_smtp_vars()
+        print(f"[Email Service Error] Password reset requested for '{clean_email}', but SMTP is not configured in production. Missing: {', '.join(missing_vars)}.")
+        return {
+            "status": "error",
+            "delivery_status": "unconfigured",
+            "smtp_configured": False,
+            "message": "Password reset service is temporarily unavailable. Please contact the administrator to configure SMTP settings."
         }
 
     connection = get_connection()
@@ -1551,7 +1620,7 @@ def forgot_password(req: ForgotPasswordRequest, request: Request = None):
                 WHERE user_id = ? AND used_at IS NULL
             """, (user_id,))
 
-            # Generate cryptographically secure single-use token
+            # Generate cryptographically secure single-use token (64-char hex)
             raw_token = generate_secure_token(32)
             tok_hash = hash_token(raw_token)
 
@@ -1564,8 +1633,6 @@ def forgot_password(req: ForgotPasswordRequest, request: Request = None):
             app_base = resolve_app_base_url(request)
             reset_link = f"{app_base}/app/reset_password.html?token={raw_token}"
             email_info = send_password_reset_email(clean_email, user_name, reset_link)
-
-            is_prod = os.getenv("ENV", os.getenv("APP_ENV", os.getenv("ENVIRONMENT", "development"))).lower() in ("production", "prod")
 
             if email_info.get("sent"):
                 return {
@@ -1580,25 +1647,23 @@ def forgot_password(req: ForgotPasswordRequest, request: Request = None):
                     "delivery_status": "smtp_error",
                     "smtp_configured": True,
                     "message": "We couldn't send the reset email. Please try again later.",
-                    "smtp_error": email_info.get("error") if not is_prod else "Delivery error"
+                    "smtp_error": "Delivery error" if is_prod else email_info.get("error")
                 }
             else:
-                # Unconfigured / local testing fallback
+                # Unconfigured fallback - strictly for local development on localhost
                 response_data = {
                     "status": "success",
                     "delivery_status": "unconfigured",
                     "smtp_configured": False,
-                    "message": generic_msg,
-                    "instructions": email_info.get("instructions")
+                    "message": generic_msg
                 }
                 if not is_prod:
-                    response_data["dev_notice"] = "SMTP is not configured. Reset link was logged to the server console."
+                    response_data["dev_notice"] = "Local Development Fallback: SMTP is not configured. Reset link was logged for offline testing."
                     response_data["reset_link"] = reset_link
-                else:
-                    response_data["dev_notice"] = "SMTP is not configured. Please contact the administrator."
 
                 return response_data
 
+        # If user not found (anti-enumeration protection)
         return {
             "status": "success",
             "delivery_status": "sent" if smtp_ok else "unconfigured",
@@ -1641,7 +1706,7 @@ def verify_reset_token(token: str):
             }
 
         expires_at = row[2]
-        if expires_at and expires_at < datetime.utcnow():
+        if is_token_expired(expires_at):
             return {
                 "valid": False,
                 "reason": "This password reset link has expired (links are valid for 15 minutes)."
@@ -1698,7 +1763,7 @@ def reset_password(req: ResetPasswordRequest):
                 detail="This reset token has already been used. Please request a new reset link."
             )
 
-        if expires_at and expires_at < datetime.utcnow():
+        if is_token_expired(expires_at):
             raise HTTPException(
                 status_code=400,
                 detail="This reset link has expired. Please request a new password reset."

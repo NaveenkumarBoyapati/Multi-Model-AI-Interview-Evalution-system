@@ -36,13 +36,17 @@ def test_smtp_connection(to_email: str = None) -> bool:
 
     print(f"\n[1/3] Connecting to SMTP server at {cfg['host']}:{cfg['port']}...")
     try:
-        server = smtplib.SMTP(cfg["host"], cfg["port"], timeout=20)
-        print("      Connected successfully.")
-
-        if cfg["use_tls"]:
-            print("[2/3] Initiating STARTTLS encryption...")
-            server.starttls()
-            print("      TLS handshake established.")
+        if cfg.get("use_ssl"):
+            print("      Connecting via Implicit SSL (port 465)...")
+            server = smtplib.SMTP_SSL(cfg["host"], cfg["port"], timeout=20)
+            print("      Connected and SSL encrypted successfully.")
+        else:
+            server = smtplib.SMTP(cfg["host"], cfg["port"], timeout=20)
+            print("      Connected successfully.")
+            if cfg["use_tls"]:
+                print("[2/3] Initiating STARTTLS encryption (port 587 / 2525)...")
+                server.starttls()
+                print("      TLS handshake established.")
 
         print(f"[3/3] Authenticating as '{cfg['user']}'...")
         server.login(cfg["user"], cfg["password"])
@@ -101,11 +105,26 @@ AI Interview Evaluation Team
 
     except smtplib.SMTPAuthenticationError as auth_err:
         print(f"\n[FAIL] SMTP Authentication Failed: {auth_err}")
-        print("\nTroubleshooting tips for Gmail:")
-        print("1. Ensure 2-Step Verification is enabled on your Google Account.")
-        print("2. Generate a dedicated 16-character App Password at: https://myaccount.google.com/apppasswords")
-        print("3. Enter the 16-character App Password into SMTP_PASSWORD (do not use your regular account password).")
-        print("4. Remove any spaces from the App Password in your .env file.")
+        if "brevo" in cfg["host"].lower() or "sendinblue" in cfg["host"].lower():
+            print("\nTroubleshooting tips for Brevo (Sendinblue):")
+            print("1. Log in to your Brevo dashboard at https://app.brevo.com")
+            print("2. Navigate to: Transactional -> Settings -> Configuration (or SMTP & API -> SMTP)")
+            print("3. Ensure SMTP_USER is your Brevo login email or the SMTP login user displayed on that page.")
+            print("4. Ensure SMTP_PASSWORD is a generated master SMTP Key (starts with 'xsmtpsib-' or similar).")
+            print("5. Ensure SMTP_FROM_EMAIL matches a verified sender in Brevo (Senders & IP -> Senders).")
+        else:
+            print("\nTroubleshooting tips for Gmail:")
+            print("1. Ensure 2-Step Verification is enabled on your Google Account.")
+            print("2. Generate a dedicated 16-character App Password at: https://myaccount.google.com/apppasswords")
+            print("3. Enter the 16-character App Password into SMTP_PASSWORD (do not use your regular account password).")
+            print("4. Remove any spaces from the App Password.")
+        return False
+    except (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected, TimeoutError, OSError) as conn_err:
+        print(f"\n[FAIL] SMTP Connection Error: {conn_err}")
+        if "brevo" in cfg["host"].lower():
+            print("\nNotice for Brevo on restricted networks or cloud hosts:")
+            print("- If port 587 is blocked by your ISP or cloud host, try port 2525 (SMTP_PORT=2525).")
+            print("- Alternatively, try port 465 with SSL (SMTP_PORT=465, SMTP_USE_SSL=true).")
         return False
     except smtplib.SMTPException as smtp_err:
         print(f"\n[FAIL] SMTP Protocol Error: {smtp_err}")
