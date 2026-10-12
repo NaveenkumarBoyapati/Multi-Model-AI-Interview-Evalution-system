@@ -1641,7 +1641,7 @@ def forgot_password(req: ForgotPasswordRequest, request: Request = None):
                     "smtp_configured": True,
                     "message": "Password reset link sent successfully. Please check your email inbox and spam folder."
                 }
-            elif email_info.get("method") == "smtp_error":
+            elif email_info.get("method") in ("smtp_error", "brevo_api_error") or is_prod:
                 return {
                     "status": "error",
                     "delivery_status": "smtp_error",
@@ -2451,7 +2451,7 @@ def api_admin_get_settings(admin: Dict[str, Any] = Depends(get_current_admin)):
     smtp_ok = is_smtp_configured()
     smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
     smtp_port = os.environ.get("SMTP_PORT", "587")
-    smtp_user = os.environ.get("SMTP_USER", "")
+    smtp_user = os.environ.get("SMTP_FROM_EMAIL", "").strip() or os.environ.get("SMTP_USER", "").strip()
     masked_smtp_user = (smtp_user[:3] + "***@" + smtp_user.split("@")[-1]) if "@" in smtp_user else "***"
 
     int_policy = {
