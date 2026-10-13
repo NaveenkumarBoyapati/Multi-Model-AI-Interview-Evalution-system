@@ -1,21 +1,35 @@
 // =========================================
 // AI Interview Evaluation System - Auth Logic
 // =========================================
+var PRODUCTION_BACKEND_URL = "https://ai-interview-backend-new-2ccj.onrender.com";
+
 // Dynamic Base URL configuration:
-// When deployed on Vercel or running on the same origin (Render), using "" routes
-// through the Vercel proxy or the host domain directly.
-// If accessed directly from an external unproxied origin or local file preview, falls back to the active Render backend.
-const API_BASE_URL = (function() {
-    if (typeof window !== "undefined" && window.API_BASE_URL !== undefined) {
+// - On Render (same origin): uses relative ""
+// - On Localhost: if port 8000 (FastAPI), uses relative ""; if on static dev server (5500, 3000), targets http://127.0.0.1:8000
+// - On Vercel / Cloud deployments: targets the active production Render backend directly,
+//   bypassing Vercel's 10s rewrite proxy timeout during cloud container cold starts.
+var API_BASE_URL = (function() {
+    if (typeof window !== "undefined" && window.API_BASE_URL !== undefined && window.API_BASE_URL !== null) {
         return window.API_BASE_URL;
     }
     if (typeof window !== "undefined" && window.location) {
         const host = window.location.hostname;
-        if (host === "localhost" || host === "127.0.0.1" || host.endsWith(".vercel.app") || host.endsWith(".onrender.com")) {
+        const port = window.location.port;
+
+        if (host.endsWith(".onrender.com")) {
             return "";
         }
+
+        if (host === "localhost" || host === "127.0.0.1") {
+            if (port === "8000") {
+                return "";
+            }
+            return "http://127.0.0.1:8000";
+        }
+
+        return PRODUCTION_BACKEND_URL;
     }
-    return "https://ai-interview-backend-new-2ccj.onrender.com";
+    return PRODUCTION_BACKEND_URL;
 })();
 
 const images = [
@@ -197,6 +211,151 @@ function updateRuleUI(elem, isValid) {
 }
 
 // =========================================
+// RESILIENT AUTH REQUEST HELPER
+// =========================================
+
+/**
+ * Executes an authentication request with dual-tier failover and granular error discrimination:
+ * 1. Primary tier: Resolved API_BASE_URL (direct production backend or local)
+ * 2. Failover tier: Relative proxy path ("" or PRODUCTION_BACKEND_URL) if primary encounters network/proxy failure
+ * 3. Graceful handling of cold-starts (HTTP 502/503/504), auth rejections (401/403), validation errors (422),
+ *    and network timeouts.
+ */
+async function requestAuthEndpoint(endpointPath, payload, onStatusUpdate) {
+    const primaryUrl = `${API_BASE_URL}${endpointPath}`;
+    const fallbackUrl = API_BASE_URL ? endpointPath : `${PRODUCTION_BACKEND_URL}${endpointPath}`;
+
+    let statusTimer = null;
+    if (typeof onStatusUpdate === "function") {
+        statusTimer = setTimeout(() => {
+            onStatusUpdate("Connecting to authentication server (waking up cloud service, please wait)...");
+        }, 2800);
+    }
+
+    async function tryFetch(url) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 65000); // 65s allows cloud cold start to finish
+        try {
+            const resp = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json"
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            return resp;
+        } catch (fetchErr) {
+            clearTimeout(timeoutId);
+            throw fetchErr;
+        }
+    }
+
+    let response = null;
+    let lastNetworkError = null;
+
+    // Tier 1: Try Primary Endpoint
+    try {
+        response = await tryFetch(primaryUrl);
+    } catch (err1) {
+        lastNetworkError = err1;
+        console.warn(`[Auth] Primary endpoint (${primaryUrl}) connection notice:`, err1.message || err1);
+        // Tier 2: Try Failover Endpoint if different
+        if (fallbackUrl && fallbackUrl !== primaryUrl) {
+            try {
+                if (typeof onStatusUpdate === "function") {
+                    onStatusUpdate("Attempting failover route to authentication server...");
+                }
+                response = await tryFetch(fallbackUrl);
+            } catch (err2) {
+                lastNetworkError = err2;
+                console.warn(`[Auth] Failover endpoint (${fallbackUrl}) connection notice:`, err2.message || err2);
+            }
+        }
+    } finally {
+        if (statusTimer) clearTimeout(statusTimer);
+    }
+
+    if (!response) {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+            return {
+                ok: false,
+                status: 0,
+                error: "You appear to be offline. Please check your internet connection and try again."
+            };
+        }
+        return {
+            ok: false,
+            status: 0,
+            error: "Unable to reach the authentication server. The cloud service may be spinning up — please wait a few seconds and try again."
+        };
+    }
+
+    // Safely parse response body (handles HTML error pages like 502/504 without throwing SyntaxError)
+    let responseData = null;
+    const contentType = response.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+        try {
+            responseData = await response.json();
+        } catch (_) {
+            responseData = null;
+        }
+    } else {
+        try {
+            const rawText = await response.text();
+            if (rawText && rawText.startsWith("{")) {
+                responseData = JSON.parse(rawText);
+            }
+        } catch (_) {}
+    }
+
+    if (!response.ok) {
+        // Distinguish specific HTTP error categories
+        if (response.status === 401) {
+            const msg = (responseData && (responseData.detail || responseData.message)) ||
+                        "Invalid email or password. Please check your credentials.";
+            return { ok: false, status: 401, error: msg, data: responseData };
+        }
+
+        if (response.status === 403) {
+            const msg = (responseData && (responseData.detail || responseData.message)) ||
+                        "Access denied. Please check your role permissions.";
+            return { ok: false, status: 403, error: msg, data: responseData };
+        }
+
+        if (response.status === 422) {
+            const msg = (responseData && (responseData.detail || responseData.message)) ||
+                        "Validation error. Please verify the submitted form fields.";
+            return { ok: false, status: 422, error: msg, data: responseData };
+        }
+
+        if (response.status === 502 || response.status === 503 || response.status === 504) {
+            return {
+                ok: false,
+                status: response.status,
+                error: "The authentication server is currently waking up or temporarily busy. Please wait a few seconds and try again."
+            };
+        }
+
+        if (response.status >= 500) {
+            return {
+                ok: false,
+                status: response.status,
+                error: "An unexpected server error occurred. Please try again shortly."
+            };
+        }
+
+        const fallbackMsg = (responseData && (responseData.detail || responseData.message)) ||
+                            `Authentication request returned HTTP ${response.status}. Please try again.`;
+        return { ok: false, status: response.status, error: fallbackMsg, data: responseData };
+    }
+
+    return { ok: true, status: response.status, data: responseData };
+}
+
+// =========================================
 // LOGIN HANDLER
 // =========================================
 
@@ -235,17 +394,18 @@ async function handleLogin(e) {
             loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email: email, password: password, role: role })
+        const result = await requestAuthEndpoint("/api/auth/login", {
+            email: email,
+            password: password,
+            role: role
+        }, (statusMsg) => {
+            if (loginBtn) {
+                loginBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${statusMsg}`;
+            }
         });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            const errorMsg = data.detail || data.message || "Invalid email or password.";
-            showAlert("error", errorMsg);
+        if (!result.ok) {
+            showAlert("error", result.error);
             if (loginBtn) {
                 loginBtn.disabled = false;
                 loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Sign In';
@@ -254,6 +414,7 @@ async function handleLogin(e) {
         }
 
         // Store session tokens and user info
+        const data = result.data;
         const user = data.user;
         const token = data.token;
         const actualRole = user.is_admin ? "Admin" : "User";
@@ -385,23 +546,20 @@ async function handleRegister(e) {
             regBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating Account...';
         }
 
-        const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                name: name,
-                email: email,
-                password: password,
-                role: "User",
-                preferred_role: prefRole
-            })
+        const result = await requestAuthEndpoint("/api/auth/register", {
+            name: name,
+            email: email,
+            password: password,
+            role: "User",
+            preferred_role: prefRole
+        }, (statusMsg) => {
+            if (regBtn) {
+                regBtn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${statusMsg}`;
+            }
         });
 
-        const data = await response.json();
-
-        if (!response.ok) {
-            const errorMsg = data.detail || data.message || "Registration failed. Please try again.";
-            showAlert("error", errorMsg);
+        if (!result.ok) {
+            showAlert("error", result.error);
             if (regBtn) {
                 regBtn.disabled = false;
                 regBtn.innerHTML = '<i class="fas fa-user-check"></i> Create Account';
@@ -410,6 +568,7 @@ async function handleRegister(e) {
         }
 
         // Store session tokens and user info
+        const data = result.data;
         const user = data.user;
         const token = data.token;
 
